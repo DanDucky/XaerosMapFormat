@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <map>
 
+#include "RegionImage.hpp"
+
 namespace nbt {
     class value;
     class tag_compound;
@@ -17,6 +19,6 @@ namespace xaero {
         [[nodiscard]] bool operator()(const nbt::tag_compound& lhs, const nbt::tag_compound& rhs) const;
     };
 
-    using StateLookup = std::unordered_map<std::string_view, std::map<nbt::tag_compound, std::pair<int, int>, CompoundCompare>>;
-    using StateColorLookup = std::unordered_map<int, std::pair<nbt::tag_compound, int>>;
+    using StateLookup = std::unordered_map<std::string_view, std::map<nbt::tag_compound, RegionImage::Pixel, CompoundCompare>>;
+    using StateIDLookup = std::optional<std::tuple<nbt::tag_compound, RegionImage::Pixel, std::string_view>>[];
 } // xaero

@@ -3,26 +3,36 @@ import argparse
 import json
 from pathlib import Path
 from typing import Optional
+from itertools import combinations
 
 NAMESPACE = "xaero"
 STATE_TYPE = "StateLookup"
 STATE_NAME = "defaultStateLookup"
-STATE_COLOR_TYPE = "StateColorLookup"
-STATE_COLOR_NAME = "defaultStateColorLookup"
+STATE_ID_TYPE = "StateIDLookup"
+STATE_ID_NAME = "defaultStateIDLookup"
 
 MODELS_CACHE = {}
 TEXTURES_CACHE = {}
+BLOCKSTATE_CACHE = {}
 
-def load_model(name : str, models : Path) -> dict :
-    if name not in MODELS_CACHE :
+def load_blockstate (name : str, blockstates : Path=None) -> dict :
+    if name not in BLOCKSTATE_CACHE and blockstates is not None:
+        with open(blockstates / (name + ".json"), "r") as file :
+            blockstate = json.load(file)
+            BLOCKSTATE_CACHE[name] = blockstate
+            return blockstate
+    return BLOCKSTATE_CACHE[name]
+
+def load_model(name : str, models : Path=None) -> dict :
+    if name not in MODELS_CACHE and models is not None:
         with open(models / (name + ".json"), "r") as file :
             model = json.load(file)
             MODELS_CACHE[name] = model
             return model
     return MODELS_CACHE[name]
 
-def load_texture(name : str, textures : Path) -> Optional[Image.Image] :
-    if name not in TEXTURES_CACHE :
+def load_texture(name : str, textures : Path=None) -> Optional[Image.Image] :
+    if name not in TEXTURES_CACHE and textures is not None:
         try :
             texture = Image.open(textures / (name + ".png"))
             TEXTURES_CACHE[name] = texture
@@ -84,13 +94,19 @@ def get_model_name(blockstate : dict, state : dict) -> Optional[str] :
 
     elif "multipart" in blockstate :
         # could fix this, but really unnecessary
+        index = 0
+        current_index = 0
         for part in blockstate["multipart"] :
             if "when" not in part:
-                model = part["apply"]
-                if isinstance(model, list) :
-                    return model[0]["model"].split("/")[-1]
-                else:
-                    return model["model"].split("/")[-1]
+                index = current_index
+                break
+            current_index += 1
+        model =  blockstate["multipart"][index]["apply"]
+        if isinstance(model, list) :
+            return model[0]["model"].split("/")[-1]
+        else:
+            return model["model"].split("/")[-1]
+
     return None
 
 def crop_uv(texture : Image.Image , uv) -> Image.Image :
@@ -129,8 +145,7 @@ def generate_colors(blocks: dict, client : Path) -> dict :
 
     for name, data in blocks.items() :
         for state in data["states"] :
-            with open(blockstates / (str(name).split(":")[1] + ".json"), "r") as file :
-                blockstate = json.load(file)
+            blockstate = load_blockstate(str(name).split(":")[1], blockstates)
 
             model_name = get_model_name(blockstate, state)
             if not model_name:
@@ -168,9 +183,6 @@ def generate_colors(blocks: dict, client : Path) -> dict :
                     texture_name = texture_name.split("/")[-1]
 
                     texture = load_texture(texture_name, textures_path)
-
-                    if not texture :
-                        continue # ermmmm cringe avenue???? next exit please!!!!
 
                     uv = face.get("uv", [0, 0, 16, 16]) # 16 will get scaled to the image size! dw if tex is larger!
 
@@ -222,51 +234,132 @@ def generate_colors(blocks: dict, client : Path) -> dict :
 
             color = (total_r // pixel_count, total_g // pixel_count, total_b // pixel_count)
 
-            color_int = 0
-            color_int |= color[2]
-            color_int |= (color[1] << 8) & 0xFF00
-            color_int |= (color[0] << 16) & 0xFF0000
-
             output[state["id"]] = color
-
     return output
 
 def generate_header() -> str :
-    header = f"""
-#pragma once
+    header = f"""#pragma once
+#include <xaero/util/LookupTypes.hpp>
 
 namespace {NAMESPACE} {{
     static const {STATE_TYPE} {STATE_NAME};
-    static const {STATE_COLOR_TYPE} {STATE_COLOR_NAME};
+    static const {STATE_ID_TYPE} {STATE_ID_NAME};
 }}
     """
 
     return header
 
-def generate_state_lookup(blocks : dict) -> str :
-    output : str = ""
+def generate_state_lookup(blocks : dict, colors : dict) -> str :
+    output = {}
     for name, data in blocks.items() :
-        output += f"{{ {str(name).split(":")[1]}, {{"
+        states = []
+
         for state in data["states"] :
+            blockstate = load_blockstate(name.split(":")[1])
+            if not blockstate:
+                continue
 
-            output += (f"{{nbt::tag_compound{{{str([{property : value} for property, value in state["properties"].items()]).replace(":", ",")[1:-1]}}}, {{{state["id"]}, "
-                       f"xaero::RegionImage::Pixel{{ 0, 0, 0, 0 }} }} }},")
+            if "multipart" in blockstate :
+                if state["id"] not in colors :
+                    continue
+                states.append(({}, colors[state["id"]])) # this means we're just going to pick the first texture, so ignore states
+                break
 
-        output = output[:-1] # remove comma
-        output += "}},\n"
+            if "variants" not in blockstate :
+                continue
 
-    return output[:-1]
+            variants = blockstate["variants"]
 
-def generate_source(file_names : str, blocks) :
-    source = f""" 
-#include \"../../include/lookups/{file_names}.hpp\"
+            if "" in variants :
+                if state["id"] not in colors :
+                    continue
+                states.append(({}, colors[state["id"]])) # only one variant
+                break
+
+            properties = state["properties"]
+
+            if state["id"] not in colors :
+                continue
+
+            states.append((properties, colors[state["id"]]))
+
+        if len(states) > 0 and len(states[0]) > 0 : # try to compress properties
+            all_properties = states[0][0].keys()
+
+            def can_distinguish_cases(subset : set) :
+                # Group by the selected properties
+                groups = {}
+                for key, value in states:
+
+                    reduced_key = tuple(sorted((prop, key[prop]) for prop in subset))
+
+                    if reduced_key not in groups:
+                        groups[reduced_key] = set()
+                    groups[reduced_key].add(value)
+
+                # Check if any group has multiple different values
+                for group_values in groups.values():
+                    if len(group_values) > 1:
+                        return False
+
+                return True
+
+            # really inefficient, but whatever cuz build time!!!!
+            for size in range(0, len(all_properties) + 1) :
+                for subset in combinations(all_properties, size) :
+                    if can_distinguish_cases(subset) :
+                        old_states = states.copy()
+
+                        states = []
+                        used_keys = []
+                        for key, value in old_states :
+                            new_key = {property : key[property] for property in subset}
+                            if new_key in used_keys :
+                                continue
+                            used_keys.append(new_key)
+                            states.append((new_key, value))
+                        break
+                else :
+                    continue
+                break
+
+        output[str(name).split(":")[1]] = states
+
+    # I hate this so much but I can't bring myself to make some nasty string builder situation and the conversion only works for this "type" so I don't wanna make a generic dict to map function
+    return ",\n".join([f"{{\"{block}\",{{{",\n".join([f"{{nbt::tag_compound{{{",".join([f"{{\"{property}\",\"{property_value}\"}}" for property, property_value in key.items()])}}},{{{value[0]},{value[1]},{value[2]},255}}}}" for key, value in states])}}}}}" for block, states in output.items()])
+
+def generate_state_id_lookup(blocks : dict, colors : dict) -> str:
+    output = []
+    for name, data in blocks.items() :
+        for state in data["states"] :
+            if state["id"] not in colors :
+                output.append((state["id"], (name.split(":")[-1], {}, (0, 0, 0, 0))))
+                continue
+            output.append((state["id"], (name.split(":")[-1], state["properties"] if "properties" in state else {}, colors[state["id"]] if state["id"] in colors else (0, 0, 0))))
+
+    output = sorted(output, key=lambda v: v[0])
+    for i in range(output[-1][0]) :
+        if output[i][0] != i :
+            output.insert(i, (i, ()))
+
+    return ",\n".join([f"{{{{\"{info[0]}\",nbt::tag_compound{{{",".join([f"{{\"{key}\",\"{value}\"}}" for key, value in info[1].items()])}}},{{{info[2][0]},{info[2][1]},{info[2][2]},{info[2][3] if len(info[2]) > 3 else 255}}}}}}}" if len(info) > 0 else "{}" for id, info in output])
+
+
+def generate_source(file_names : str, blocks : dict, colors : dict) :
+    source = f"""#include \"../../include/lookups/{file_names}.hpp\"
 #include <nbt_tags.h>
 
-static const {STATE_TYPE} {NAMESPACE}::{STATE_NAME} = {{
-    {generate_state_lookup(blocks)}
+static const {NAMESPACE}::{STATE_TYPE} {NAMESPACE}::{STATE_NAME} = {{
+{generate_state_lookup(blocks, colors)}
+}};
+
+static const {NAMESPACE}::{STATE_ID_TYPE} {NAMESPACE}::{STATE_ID_NAME} = {{
+{generate_state_id_lookup(blocks, colors)}
 }};
 
 """
+
+    return source
 
 def main() :
     parser = argparse.ArgumentParser(description="Generating lookup headers")
@@ -281,9 +374,17 @@ def main() :
         blocks = json.load(file)
 
     colors = generate_colors(blocks, Path(args.client))
-    print(colors)
-    # header = generate_header()
-    # source = generate_source(args.file_names, blocks)
+    header = generate_header()
+    source = generate_source(args.file_names, blocks, colors)
+    output = Path(args.output_dir)
+    header_path = output / "include" / "xaero" / "lookups" / (args.file_names + ".hpp")
+    header_path.parent.mkdir(exist_ok=True, parents=True)
+    source_path = output / "src" / "lookups" / (args.file_names + ".cpp")
+    source_path.parent.mkdir(exist_ok=True, parents=True)
+    with open(header_path, "w") as file :
+        file.write(header)
+    with open(source_path, "w") as file :
+        file.write(source)
 
 if __name__ == "__main__":
     main()
