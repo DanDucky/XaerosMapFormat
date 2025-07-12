@@ -3,13 +3,11 @@
 #include <string_view>
 #include <unordered_map>
 #include <map>
+#include <optional>
+#include <nbt_tags.h>
+#include <tuple>
 
 #include "RegionImage.hpp"
-
-namespace nbt {
-    class value;
-    class tag_compound;
-}
 
 namespace xaero {
     struct ValueCompare {
@@ -20,5 +18,5 @@ namespace xaero {
     };
 
     using StateLookup = std::unordered_map<std::string_view, std::map<nbt::tag_compound, RegionImage::Pixel, CompoundCompare>>;
-    using StateIDLookup = std::optional<std::tuple<nbt::tag_compound, RegionImage::Pixel, std::string_view>>[];
+    using StateIDLookup = std::optional<std::tuple<std::string_view, nbt::tag_compound, RegionImage::Pixel>>[];
 } // xaero

@@ -196,7 +196,7 @@ def generate_colors(blocks: dict, client : Path) -> dict :
 
                     if x2 > x1 and z2 > z1:
                         resized = cropped.resize((x2 - x1, z2 - z1))
-                        image.paste(resized, (x1, z1))
+                        image.paste(resized, (x1, z1), resized.convert("RGBA"))
 
                     found_texture = True
 
@@ -240,10 +240,12 @@ def generate_colors(blocks: dict, client : Path) -> dict :
 def generate_header() -> str :
     header = f"""#pragma once
 #include <xaero/util/LookupTypes.hpp>
+#include <cstddef>
 
 namespace {NAMESPACE} {{
-    static const {STATE_TYPE} {STATE_NAME};
-    static const {STATE_ID_TYPE} {STATE_ID_NAME};
+    extern const {STATE_TYPE} {STATE_NAME};
+    extern const {STATE_ID_TYPE} {STATE_ID_NAME};
+    extern const std::size_t {STATE_ID_NAME + "Size"};
 }}
     """
 
@@ -328,7 +330,7 @@ def generate_state_lookup(blocks : dict, colors : dict) -> str :
     # I hate this so much but I can't bring myself to make some nasty string builder situation and the conversion only works for this "type" so I don't wanna make a generic dict to map function
     return ",\n".join([f"{{\"{block}\",{{{",\n".join([f"{{nbt::tag_compound{{{",".join([f"{{\"{property}\",\"{property_value}\"}}" for property, property_value in key.items()])}}},{{{value[0]},{value[1]},{value[2]},255}}}}" for key, value in states])}}}}}" for block, states in output.items()])
 
-def generate_state_id_lookup(blocks : dict, colors : dict) -> str:
+def generate_state_id_lookup(blocks : dict, colors : dict) -> (int, str):
     output = []
     for name, data in blocks.items() :
         for state in data["states"] :
@@ -338,24 +340,27 @@ def generate_state_id_lookup(blocks : dict, colors : dict) -> str:
             output.append((state["id"], (name.split(":")[-1], state["properties"] if "properties" in state else {}, colors[state["id"]] if state["id"] in colors else (0, 0, 0))))
 
     output = sorted(output, key=lambda v: v[0])
-    for i in range(output[-1][0]) :
+    for i in range(output[-1][0] + 1) :
         if output[i][0] != i :
             output.insert(i, (i, ()))
 
-    return ",\n".join([f"{{{{\"{info[0]}\",nbt::tag_compound{{{",".join([f"{{\"{key}\",\"{value}\"}}" for key, value in info[1].items()])}}},{{{info[2][0]},{info[2][1]},{info[2][2]},{info[2][3] if len(info[2]) > 3 else 255}}}}}}}" if len(info) > 0 else "{}" for id, info in output])
+    return len(output), ",\n".join([f"{{{{\"{info[0]}\",nbt::tag_compound{{{",".join([f"{{\"{key}\",\"{value}\"}}" for key, value in info[1].items()])}}},{{{info[2][0]},{info[2][1]},{info[2][2]},{info[2][3] if len(info[2]) > 3 else 255}}}}}}}" if len(info) > 0 else "{}" for id, info in output])
 
 
 def generate_source(file_names : str, blocks : dict, colors : dict) :
-    source = f"""#include \"../../include/lookups/{file_names}.hpp\"
+    id_size, state_id = generate_state_id_lookup(blocks, colors)
+    source = f"""#include \"xaero/lookups/{file_names}.hpp\"
 #include <nbt_tags.h>
 
-static const {NAMESPACE}::{STATE_TYPE} {NAMESPACE}::{STATE_NAME} = {{
+const {NAMESPACE}::{STATE_TYPE} {NAMESPACE}::{STATE_NAME} = {{
 {generate_state_lookup(blocks, colors)}
 }};
 
-static const {NAMESPACE}::{STATE_ID_TYPE} {NAMESPACE}::{STATE_ID_NAME} = {{
-{generate_state_id_lookup(blocks, colors)}
+const {NAMESPACE}::{STATE_ID_TYPE} {NAMESPACE}::{STATE_ID_NAME} = {{
+{state_id}
 }};
+
+const std::size_t {NAMESPACE}::{STATE_ID_NAME + "Size"} = {id_size};
 
 """
 

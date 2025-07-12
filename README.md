@@ -6,6 +6,10 @@ A C++ library for reading and writing to the Xaero's Map save format.
 
 continuation and libraryfication of [XaerotoJourneyMap](https://github.com/DanDucky/XaerotoJourneyMap)
 
+## Compatibility
+
+I've tried to write this in a pretty platform-agnostic way, but I really doubt `XAERO_GENERATE_HEADERS` will work with MSVC. It requires some flags for the linker which are really suspect in order to keep data contiguous. Clang and GCC should work just fine.
+
 ## Dependencies
 
 ### Build Dependencies

@@ -13,13 +13,31 @@ add_library(XaerosMapFormat
         src/util/LookupTypes.cpp
 )
 
+file (DOWNLOAD
+        https://github.com/cpm-cmake/CPM.cmake/releases/latest/download/get_cpm.cmake
+        ${CMAKE_SOURCE_DIR}/external/cmake/get_cpm.cmake
+)
+
+include(external/cmake/get_cpm.cmake)
+
+CPMAddPackage(
+        NAME libnbt++
+        GIT_TAG master
+        GITHUB_REPOSITORY PrismLauncher/libnbtplusplus
+        OPTIONS
+            "NBT_USE_ZLIB OFF"
+            "NBT_BUILD_TESTS OFF"
+)
+
 if (XAERO_GENERATE_RESOURCES)
+    set(WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/XaerosMapFormat")
+
     find_package(Java 21 REQUIRED COMPONENTS Runtime)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
     # create .venv
 
-    set(VENV_DIR "${CMAKE_BINARY_DIR}/XaerosMapFormat/.venv")
+    set(VENV_DIR "${WORKING_DIRECTORY}/.venv")
 
     if (WIN32) # fuck windows
         set(VENV_PYTHON "${VENV_DIR}/Scripts/python.exe")
@@ -51,12 +69,12 @@ if (XAERO_GENERATE_RESOURCES)
 
     # paraphrased from https://github.com/adepierre/Botcraft/blob/a673577228dbab69f63ea8f3298979aca0be8c10/cmake/mc_urls.cmake#L63
 
-    set(VERSION_MANIFEST "${CMAKE_BINARY_DIR}/XaerosMapFormat/version_manifest_v2.json")
+    set(VERSION_MANIFEST "${WORKING_DIRECTORY}/version_manifest_v2.json")
 
     file(DOWNLOAD
-        "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
-        ${VERSION_MANIFEST}
-        STATUS MANIFEST_RESULT
+            "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
+            ${VERSION_MANIFEST}
+            STATUS MANIFEST_RESULT
     )
 
     if (NOT MANIFEST_RESULT EQUAL 0)
@@ -79,15 +97,15 @@ if (XAERO_GENERATE_RESOURCES)
 
     message(STATUS "Selected ${LATEST_VERSION} as the latest Minecraft release")
 
-    set(MINECRAFT_VERSION_PACKAGE "${CMAKE_BINARY_DIR}/XaerosMapFormat/${LATEST_VERSION}.json")
+    set(MINECRAFT_VERSION_PACKAGE "${WORKING_DIRECTORY}/${LATEST_VERSION}.json")
 
     if (NOT EXISTS ${MINECRAFT_VERSION_PACKAGE})
         set(REQUIRES_DOWNLOAD ON)
 
         file(DOWNLOAD
-            ${MINECRAFT_VERSION_URL}
-            ${MINECRAFT_VERSION_PACKAGE}
-            STATUS VERSION_RESULT
+                ${MINECRAFT_VERSION_URL}
+                ${MINECRAFT_VERSION_PACKAGE}
+                STATUS VERSION_RESULT
         )
 
         if (NOT VERSION_RESULT EQUAL 0)
@@ -101,14 +119,14 @@ if (XAERO_GENERATE_RESOURCES)
     string(JSON SERVER_URL GET ${VERSION_PACKAGE_CONTENT} "downloads" "server" "url")
     string(JSON CLIENT_URL GET ${VERSION_PACKAGE_CONTENT} "downloads" "client" "url")
 
-    set(SERVER_JAR "${CMAKE_BINARY_DIR}/XaerosMapFormat/server.jar")
-    set(CLIENT_JAR "${CMAKE_BINARY_DIR}/XaerosMapFormat/client.jar")
+    set(SERVER_JAR "${WORKING_DIRECTORY}/server.jar")
+    set(CLIENT_JAR "${WORKING_DIRECTORY}/client.jar")
 
     if ((NOT EXISTS ${SERVER_JAR}) OR REQUIRES_DOWNLOAD)
         file (DOWNLOAD
-            ${SERVER_URL}
-            ${SERVER_JAR}
-            STATUS SERVER_STATUS
+                ${SERVER_URL}
+                ${SERVER_JAR}
+                STATUS SERVER_STATUS
         )
 
         if (NOT SERVER_STATUS EQUAL 0)
@@ -119,9 +137,9 @@ if (XAERO_GENERATE_RESOURCES)
 
     if ((NOT EXISTS ${CLIENT_JAR}) OR REQUIRES_DOWNLOAD)
         file (DOWNLOAD
-            ${CLIENT_URL}
-            ${CLIENT_JAR}
-            STATUS CLIENT_STATUS
+                ${CLIENT_URL}
+                ${CLIENT_JAR}
+                STATUS CLIENT_STATUS
         )
 
         if (NOT CLIENT_STATUS EQUAL 0)
@@ -130,68 +148,57 @@ if (XAERO_GENERATE_RESOURCES)
         endif ()
     endif ()
 
-    if ((NOT EXISTS ${CMAKE_BINARY_DIR}/XaerosMapFormat/generated/reports) OR REQUIRES_DOWNLOAD)
+    if ((NOT EXISTS ${WORKING_DIRECTORY}/generated/reports) OR REQUIRES_DOWNLOAD)
         execute_process(
-            COMMAND ${Java_JAVA_EXECUTABLE}
+                COMMAND ${Java_JAVA_EXECUTABLE}
                 -DbundlerMainClass=net.minecraft.data.Main
                 -jar ${SERVER_JAR}
                 --reports
-            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/XaerosMapFormat
-            RESULT_VARIABLE DATA_GENERATOR_RESULT
+                WORKING_DIRECTORY ${WORKING_DIRECTORY}
+                RESULT_VARIABLE DATA_GENERATOR_RESULT
         )
 
         if (NOT DATA_GENERATOR_RESULT EQUAL 0)
-            file(REMOVE_RECURSE ${CMAKE_BINARY_DIR}/XaerosMapFormat/generated/reports)
+            file(REMOVE_RECURSE ${WORKING_DIRECTORY}/generated/reports)
             message(FATAL_ERROR "Could not run Minecraft data generator!")
         endif ()
     endif()
 
-    set(CLIENT_JAR_EXTRACTED "${CMAKE_BINARY_DIR}/XaerosMapFormat/client_extracted")
+    set(CLIENT_JAR_EXTRACTED "${WORKING_DIRECTORY}/client_extracted")
 
     if ((NOT EXISTS ${CLIENT_JAR_EXTRACTED}) OR REQUIRES_DOWNLOAD)
         file(ARCHIVE_EXTRACT
-            INPUT ${CLIENT_JAR}
-            DESTINATION ${CLIENT_JAR_EXTRACTED}
+                INPUT ${CLIENT_JAR}
+                DESTINATION ${CLIENT_JAR_EXTRACTED}
         )
     endif()
 
     set(GENERATED_FILE_NAMES "BlockLookups")
 
-    execute_process(
-        COMMAND
-            ${VENV_PYTHON} ${CMAKE_SOURCE_DIR}/generation/generator.py
-            --client ${CLIENT_JAR_EXTRACTED}
-            --reports ${CMAKE_BINARY_DIR}/XaerosMapFormat/generated/reports
-            --output_dir ${CMAKE_BINARY_DIR}/XaerosMapFormat/generated
-            --file_names ${GENERATED_FILE_NAMES}
-        RESULT_VARIABLE GENERATOR_RESULT
-    )
+    if ((NOT EXISTS ${WORKING_DIRECTORY}/generated/include/xaero/lookups/${GENERATED_FILE_NAMES}.hpp) OR (NOT EXISTS ${WORKING_DIRECTORY}/generated/src/lookups/${GENERATED_FILE_NAMES}.cpp) OR REQUIRES_DOWNLOAD)
+        execute_process(
+                COMMAND
+                ${VENV_PYTHON} ${CMAKE_SOURCE_DIR}/generation/generator.py
+                --client ${CLIENT_JAR_EXTRACTED}
+                --reports ${WORKING_DIRECTORY}/generated/reports
+                --output_dir ${WORKING_DIRECTORY}/generated
+                --file_names ${GENERATED_FILE_NAMES}
+                RESULT_VARIABLE GENERATOR_RESULT
+        )
 
-    if (NOT GENERATOR_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to generate lookup headers!")
-    endif ()
+        if (NOT GENERATOR_RESULT EQUAL 0)
+            message(FATAL_ERROR "Failed to generate lookup headers!")
+        endif ()
+    endif()
 
-    add_library(XaerosLookups INTERFACE)
-    target_include_directories(XaerosLookups INTERFACE "${CMAKE_BINARY_DIR}/XaerosMapFormat/generated/include")
+    add_library(XaerosLookups OBJECT ${WORKING_DIRECTORY}/generated/src/lookups/${GENERATED_FILE_NAMES}.cpp)
+    target_include_directories(XaerosLookups PUBLIC ${WORKING_DIRECTORY}/generated/include)
+    target_include_directories(XaerosLookups PRIVATE include)
+    target_compile_definitions(XaerosLookups PUBLIC XAERO_DEFAULT_LOOKUPS=1)
+    target_link_libraries(XaerosLookups PRIVATE nbt++)
 
-    target_link_libraries(XaerosMapFormat PUBLIC XaerosLookups)
+    target_link_libraries(XaerosMapFormat PRIVATE XaerosLookups)
 endif ()
-
-file (DOWNLOAD
-        https://github.com/cpm-cmake/CPM.cmake/releases/latest/download/get_cpm.cmake
-        ${CMAKE_SOURCE_DIR}/external/cmake/get_cpm.cmake
-)
-
-include(external/cmake/get_cpm.cmake)
-
-CPMAddPackage(
-        NAME libnbt++
-        GIT_TAG master
-        GITHUB_REPOSITORY PrismLauncher/libnbtplusplus
-        OPTIONS
-            "NBT_USE_ZLIB OFF"
-            "NBT_BUILD_TESTS OFF"
-)
 
 target_link_libraries(XaerosMapFormat PRIVATE nbt++)
 
