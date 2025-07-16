@@ -8,7 +8,7 @@ from itertools import combinations
 NAMESPACE = "xaero"
 STATE_TYPE = "StateLookup"
 STATE_NAME = "defaultStateLookup"
-STATE_ID_TYPE = "StateIDLookup"
+STATE_ID_TYPE = "StateIDLookupChunk"
 STATE_ID_NAME = "defaultStateIDLookup"
 
 MODELS_CACHE = {}
@@ -237,15 +237,12 @@ def generate_colors(blocks: dict, client : Path) -> dict :
             output[state["id"]] = color
     return output
 
-def generate_header() -> str :
+def generate_header(size : int) -> str :
     header = f"""#pragma once
-#include <xaero/util/LookupTypes.hpp>
-#include <cstddef>
+#include <xaero/lookups/LookupTypes.hpp>
 
 namespace {NAMESPACE} {{
-    extern const {STATE_TYPE} {STATE_NAME};
-    extern const {STATE_ID_TYPE} {STATE_ID_NAME};
-    extern const std::size_t {STATE_ID_NAME + "Size"};
+    {"\n".join([f"extern const {STATE_ID_TYPE} {STATE_ID_NAME}_{i};" for i in range(size)])}
 }}
     """
 
@@ -330,7 +327,7 @@ def generate_state_lookup(blocks : dict, colors : dict) -> str :
     # I hate this so much but I can't bring myself to make some nasty string builder situation and the conversion only works for this "type" so I don't wanna make a generic dict to map function
     return ",\n".join([f"{{\"{block}\",{{{",\n".join([f"{{nbt::tag_compound{{{",".join([f"{{\"{property}\",\"{property_value}\"}}" for property, property_value in key.items()])}}},{{{value[0]},{value[1]},{value[2]},255}}}}" for key, value in states])}}}}}" for block, states in output.items()])
 
-def generate_state_id_lookup(blocks : dict, colors : dict) -> (int, str):
+def generate_lookups(file_names : Path, blocks : dict, colors : dict) -> dict:
     output = []
     for name, data in blocks.items() :
         for state in data["states"] :
@@ -344,27 +341,48 @@ def generate_state_id_lookup(blocks : dict, colors : dict) -> (int, str):
         if output[i][0] != i :
             output.insert(i, (i, ()))
 
-    return len(output), ",\n".join([f"{{{{\"{info[0]}\",nbt::tag_compound{{{",".join([f"{{\"{key}\",\"{value}\"}}" for key, value in info[1].items()])}}},{{{info[2][0]},{info[2][1]},{info[2][2]},{info[2][3] if len(info[2]) > 3 else 255}}}}}}}" if len(info) > 0 else "{}" for id, info in output])
+    output_split = {}
+    # in bits used to represent it
+    chunk_size = 11
+    i = 0
+    for chunk in [output[i:i + pow(2, chunk_size)] for i in range(0, len(output), pow(2, chunk_size))] :
+        source = f"""#include \"xaero/lookups/Private{file_names}.hpp\"
+#include \"xaero/lookups/{file_names}.hpp\"
+#include <nbt_tags.h>
+#include <type_traits>
 
+namespace {NAMESPACE} {{
+const {NAMESPACE}::{STATE_ID_TYPE} {STATE_ID_NAME}_{i} = {{
+{",\n".join([f"{{{{\"{info[0]}\",nbt::tag_compound{{{",".join([f"{{\"{key}\",\"{value}\"}}" for key, value in info[1].items()])}}},{{{info[2][0]},{info[2][1]},{info[2][2]},{info[2][3] if len(info[2]) > 3 else 255}}}}}}}" if len(info) > 0 else "{}" for id, info in chunk])}
+}};
+}}
 
-def generate_source(file_names : str, blocks : dict, colors : dict) :
-    id_size, state_id = generate_state_id_lookup(blocks, colors)
-    source = f"""#include \"xaero/lookups/{file_names}.hpp\"
+"""
+        if i == 0 : # first file, add size
+            source += f"const std::size_t {NAMESPACE}::{STATE_ID_NAME + "Size"} = {len(output)};"
+        output_split[f"{file_names}_StateID_{i}"] = source
+        i+=1
+
+    source = f"""#include \"xaero/lookups/Private{file_names}.hpp\"
+#include \"xaero/lookups/{file_names}.hpp\"
+#include \"xaero/lookups/LookupTypes.hpp\"
 #include <nbt_tags.h>
 
 const {NAMESPACE}::{STATE_TYPE} {NAMESPACE}::{STATE_NAME} = {{
 {generate_state_lookup(blocks, colors)}
 }};
 
-const {NAMESPACE}::{STATE_ID_TYPE} {NAMESPACE}::{STATE_ID_NAME} = {{
-{state_id}
-}};
+const std::optional<const xaero::StateIDPack> & xaero::DefaultStateIDLookup::operator[](const std::size_t index) const {{
+    static const std::remove_extent_t<xaero::StateIDLookupChunk>* chunks[] = {{
+    {",\n".join([f"{NAMESPACE}::{STATE_ID_NAME}_{index}" for index in range(len(output_split))])}
+    }};
 
-const std::size_t {NAMESPACE}::{STATE_ID_NAME + "Size"} = {id_size};
-
+    return chunks[index >> {chunk_size}][index & {pow(2, chunk_size) - 1}];
+}}
 """
 
-    return source
+    output_split[f"{file_names}"] = source
+    return output_split
 
 def main() :
     parser = argparse.ArgumentParser(description="Generating lookup headers")
@@ -378,18 +396,27 @@ def main() :
     with open(Path(args.reports) / "blocks.json", "r") as file :
         blocks = json.load(file)
 
+    manifest = []
+
     colors = generate_colors(blocks, Path(args.client))
-    header = generate_header()
-    source = generate_source(args.file_names, blocks, colors)
+    state_id_split = generate_lookups(args.file_names, blocks, colors)
+    header = generate_header(len(state_id_split) - 1)
     output = Path(args.output_dir)
-    header_path = output / "include" / "xaero" / "lookups" / (args.file_names + ".hpp")
+    header_path = output / "include" / "xaero" / "lookups" / ("Private" + args.file_names + ".hpp")
     header_path.parent.mkdir(exist_ok=True, parents=True)
-    source_path = output / "src" / "lookups" / (args.file_names + ".cpp")
-    source_path.parent.mkdir(exist_ok=True, parents=True)
     with open(header_path, "w") as file :
         file.write(header)
-    with open(source_path, "w") as file :
-        file.write(source)
+
+    chunk_output_dir = output / "src" / "lookups"
+    chunk_output_dir.mkdir(exist_ok=True, parents=True)
+    for name, chunk in state_id_split.items() :
+        path = chunk_output_dir / (name + ".cpp")
+        manifest.append(str(path))
+        with open(path, "w") as file:
+            file.write(chunk)
+
+    with open(output / "manifest.txt", "w") as file : # I think this is the right term... it's internal anyways
+        file.write("\n".join(manifest))
 
 if __name__ == "__main__":
     main()

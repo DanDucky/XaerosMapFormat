@@ -1,5 +1,5 @@
 #include <algorithm>
-#include <xaero/util/LookupTypes.hpp>
+#include <xaero/lookups/LookupTypes.hpp>
 #include <nbt_tags.h>
 
 bool xaero::ValueCompare::operator()(const nbt::value &lhs, const nbt::value &rhs) const {

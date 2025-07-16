@@ -10,7 +10,7 @@ add_library(XaerosMapFormat
         src/util/ByteInputStream.cpp
         src/util/Math.cpp
         src/util/Region.cpp
-        src/util/LookupTypes.cpp
+        src/lookups/LookupTypes.cpp
 )
 
 file (DOWNLOAD
@@ -175,7 +175,7 @@ if (XAERO_GENERATE_RESOURCES)
 
     set(GENERATED_FILE_NAMES "BlockLookups")
 
-    if ((NOT EXISTS ${WORKING_DIRECTORY}/generated/include/xaero/lookups/${GENERATED_FILE_NAMES}.hpp) OR (NOT EXISTS ${WORKING_DIRECTORY}/generated/src/lookups/${GENERATED_FILE_NAMES}.cpp) OR REQUIRES_DOWNLOAD)
+    if ((NOT EXISTS ${WORKING_DIRECTORY}/generated/manifest.txt) OR REQUIRES_DOWNLOAD)
         execute_process(
                 COMMAND
                 ${VENV_PYTHON} ${CMAKE_SOURCE_DIR}/generation/generator.py
@@ -191,16 +191,18 @@ if (XAERO_GENERATE_RESOURCES)
         endif ()
     endif()
 
-    add_library(XaerosLookups OBJECT ${WORKING_DIRECTORY}/generated/src/lookups/${GENERATED_FILE_NAMES}.cpp)
-    target_include_directories(XaerosLookups PUBLIC ${WORKING_DIRECTORY}/generated/include)
-    target_include_directories(XaerosLookups PRIVATE include)
-    target_compile_definitions(XaerosLookups PUBLIC XAERO_DEFAULT_LOOKUPS=1)
-    target_link_libraries(XaerosLookups PRIVATE nbt++)
+    file(STRINGS ${WORKING_DIRECTORY}/generated/manifest.txt SOURCES_LIST)
 
-    target_link_libraries(XaerosMapFormat PRIVATE XaerosLookups)
+    add_library(XaerosLookups OBJECT ${SOURCES_LIST})
+    target_link_libraries(XaerosLookups PUBLIC nbt++)
+    target_include_directories(XaerosLookups PRIVATE ${WORKING_DIRECTORY}/generated/include)
+    target_compile_definitions(XaerosLookups PUBLIC XAERO_DEFAULT_LOOKUPS=1)
+    target_include_directories(XaerosLookups PUBLIC include)
+
+    target_link_libraries(XaerosMapFormat PUBLIC XaerosLookups)
 endif ()
 
-target_link_libraries(XaerosMapFormat PRIVATE nbt++)
+target_link_libraries(XaerosMapFormat PUBLIC nbt++)
 
 set_target_properties(XaerosMapFormat PROPERTIES VERSION ${PROJECT_VERSION})
 

@@ -11,7 +11,7 @@ namespace xaero {
     Region parseRegion(ByteInputStream &stream) {
         Region output;
 
-        bool hasFullVersion = stream.peekNext<std::uint8_t>() == 255;
+        const bool hasFullVersion = stream.peekNext<std::uint8_t>() == 255;
         std::pair<std::int16_t, std::int16_t> version;
         bool is115not114 = false;
         if (hasFullVersion) {
