@@ -8,7 +8,9 @@ from itertools import combinations
 NAMESPACE = "xaero"
 STATE_TYPE = "StateLookup"
 STATE_NAME = "defaultStateLookup"
-STATE_ID_TYPE = "StateIDLookupChunk"
+STATE_ID_TYPE = "DefaultStateIDLookup"
+STATE_ID_ELEMENT_TYPE = "StateIDLookupElement"
+STATE_ID_CHUNK_TYPE = "StateIDLookupChunk"
 STATE_ID_NAME = "defaultStateIDLookup"
 
 MODELS_CACHE = {}
@@ -242,7 +244,7 @@ def generate_header(size : int) -> str :
 #include <xaero/lookups/LookupTypes.hpp>
 
 namespace {NAMESPACE} {{
-    {"\n".join([f"extern const {STATE_ID_TYPE} {STATE_ID_NAME}_{i};" for i in range(size)])}
+    {"\n".join([f"extern const {STATE_ID_CHUNK_TYPE} {STATE_ID_NAME}_{i};" for i in range(size)])}
 }}
     """
 
@@ -352,7 +354,7 @@ def generate_lookups(file_names : Path, blocks : dict, colors : dict) -> dict:
 #include <type_traits>
 
 namespace {NAMESPACE} {{
-const {NAMESPACE}::{STATE_ID_TYPE} {STATE_ID_NAME}_{i} = {{
+const {NAMESPACE}::{STATE_ID_CHUNK_TYPE} {STATE_ID_NAME}_{i} = {{
 {",\n".join([f"{{{{\"{info[0]}\",nbt::tag_compound{{{",".join([f"{{\"{key}\",\"{value}\"}}" for key, value in info[1].items()])}}},{{{info[2][0]},{info[2][1]},{info[2][2]},{info[2][3] if len(info[2]) > 3 else 255}}}}}}}" if len(info) > 0 else "{}" for id, info in chunk])}
 }};
 }}
@@ -368,12 +370,14 @@ const {NAMESPACE}::{STATE_ID_TYPE} {STATE_ID_NAME}_{i} = {{
 #include \"xaero/lookups/LookupTypes.hpp\"
 #include <nbt_tags.h>
 
-const {NAMESPACE}::{STATE_TYPE} {NAMESPACE}::{STATE_NAME} = {{
+[[maybe_unused]] const {NAMESPACE}::{STATE_TYPE} {NAMESPACE}::{STATE_NAME} = {{
 {generate_state_lookup(blocks, colors)}
 }};
 
-const std::optional<const xaero::StateIDPack> & xaero::DefaultStateIDLookup::operator[](const std::size_t index) const {{
-    static const std::remove_extent_t<xaero::StateIDLookupChunk>* chunks[] = {{
+[[maybe_unused]] const {NAMESPACE}::{STATE_ID_TYPE} {NAMESPACE}::{STATE_ID_NAME} = {{}};
+
+const {NAMESPACE}::{STATE_ID_ELEMENT_TYPE} & {NAMESPACE}::{STATE_ID_TYPE}::operator[](const std::size_t index) const {{
+    static const {NAMESPACE}::{STATE_ID_ELEMENT_TYPE}* chunks[] = {{
     {",\n".join([f"{NAMESPACE}::{STATE_ID_NAME}_{index}" for index in range(len(output_split))])}
     }};
 
@@ -411,7 +415,7 @@ def main() :
     chunk_output_dir.mkdir(exist_ok=True, parents=True)
     for name, chunk in state_id_split.items() :
         path = chunk_output_dir / (name + ".cpp")
-        manifest.append(str(path))
+        manifest.append(str(path.as_posix()))
         with open(path, "w") as file:
             file.write(chunk)
 

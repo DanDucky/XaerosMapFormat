@@ -73,6 +73,7 @@ jobs:
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         ${{ matrix.configure_flags }}
+        -DXAERO_BUILD_TESTS=1
         -S ${{ github.workspace }}
 
     - name: Build

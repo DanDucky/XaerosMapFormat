@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef XAERO_DEFAULT_LOOKUPS
+
 #include "LookupTypes.hpp"
 
 namespace xaero {
@@ -13,3 +15,5 @@ namespace xaero {
     extern const std::size_t defaultStateIDLookupSize;
     extern const std::size_t defaultStateIDLookupChunkSize;
 }
+
+#endif

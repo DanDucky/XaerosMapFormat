@@ -41,13 +41,14 @@ namespace xaero {
                         int state;
                         RegionImage::Pixel customColor;
                         int opacity;
-
-                    }* overlays = nullptr;
+                    };
+                    Overlay* overlays = nullptr;
 
                     void allocateOverlays();
 
                     ~Pixel();
-                } (*columns)[16][16] = nullptr;
+                };
+                Pixel (*columns)[16][16] = nullptr;
 
                 bool isVoid = true;
 
@@ -57,7 +58,8 @@ namespace xaero {
                 void allocateColumns();
 
                 ~Chunk();
-            } (*chunks)[4][4] = nullptr;
+            };
+            Chunk (*chunks)[4][4] = nullptr;
 
             [[nodiscard]] Chunk* operator[] (int x);
             [[nodiscard]] const Chunk* operator[] (int x) const;
@@ -65,7 +67,8 @@ namespace xaero {
             void allocateChunks();
 
             ~TileChunk();
-        } tileChunks[8][8];
+        };
+        TileChunk tileChunks[8][8];
 
         [[nodiscard]] TileChunk* operator[] (int x);
         [[nodiscard]] const TileChunk* operator[] (int x) const;

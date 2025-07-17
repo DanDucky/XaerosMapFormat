@@ -1,6 +1,7 @@
 #include "ByteInputStream.hpp"
 
 #include <cmath>
+#include <algorithm>
 
 #include "Math.hpp"
 

@@ -222,9 +222,11 @@ namespace xaero {
     }
 
     RegionImage Parser::generateImage(int x, int z) const {
+        return {};
     }
 
     std::list<RegionImage> Parser::generateImages() const {
+        return {};
     }
 
 } // xaero
