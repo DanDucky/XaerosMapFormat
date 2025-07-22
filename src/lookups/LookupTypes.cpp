@@ -1,8 +1,9 @@
 #include <algorithm>
 #include <xaero/lookups/LookupTypes.hpp>
 #include <nbt_tags.h>
+#include <ranges>
 
-bool xaero::ValueCompare::operator()(const nbt::value &lhs, const nbt::value &rhs) const {
+bool xaero::ValueCompare::operator()(const nbt::value &lhs, const nbt::value &rhs) const noexcept {
     if (lhs.get_ptr() != nullptr && rhs.get_ptr() != nullptr) { // this is about to be some serious cancer
         if (lhs.get_type() != rhs.get_type()) return lhs.get_type() < rhs.get_type();
 
@@ -61,7 +62,7 @@ bool xaero::ValueCompare::operator()(const nbt::value &lhs, const nbt::value &rh
     }
 }
 
-bool xaero::CompoundCompare::operator()(const nbt::tag_compound &lhs, const nbt::tag_compound &rhs) const {
+bool xaero::CompoundCompare::operator()(const nbt::tag_compound &lhs, const nbt::tag_compound &rhs) const noexcept {
     return std::ranges::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), [](const std::pair<const std::string, nbt::value>& a, const std::pair<const std::string, nbt::value>& b) -> bool {
         if (a.first != b.first) {
             return a.first < b.first;
@@ -69,4 +70,16 @@ bool xaero::CompoundCompare::operator()(const nbt::tag_compound &lhs, const nbt:
 
         return ValueCompare()(a.second, b.second);
     });
+}
+
+std::size_t xaero::NameHash::operator()(const std::string_view &name) const noexcept {
+    const auto split = name.find_first_of(':');
+    return std::hash<std::string_view>{}(split != std::string_view::npos ? name.substr(split + 1) : name);
+}
+
+bool xaero::NameEquals::operator()(const std::string_view &a, const std::string_view &b) const noexcept {
+    const auto aSplit = a.find_first_of(':');
+    const auto bSplit = b.find_first_of(':');
+
+    return (aSplit != std::string_view::npos ? a.substr(aSplit + 1) : a) == (bSplit != std::string_view::npos ? b.substr(bSplit + 1) : b);
 }

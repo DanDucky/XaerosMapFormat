@@ -1,5 +1,6 @@
 #pragma once
 
+// this is done with an ifdef and without code gen because I want to be able to include the ./include and have every header that could possibly be referenced
 #ifdef XAERO_DEFAULT_LOOKUPS
 
 #include "LookupTypes.hpp"

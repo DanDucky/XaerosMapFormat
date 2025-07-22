@@ -2,6 +2,7 @@
 
 #include <variant>
 #include <tag_compound.h>
+#include <vector>
 
 #include "RegionImage.hpp"
 
@@ -10,50 +11,34 @@ namespace xaero {
         struct TileChunk {
             struct Chunk {
                 struct Pixel {
-                    bool isNotGrass;
-                    bool hasOverlays;
-                    bool newStatePalette;
-                    bool newBiomePalette;
-                    bool biomeAsInt;
+                    using BlockState = std::pair<const std::string, const nbt::tag_compound>;
+
                     std::uint8_t colorType; // todo make enum with descriptive names
                     std::uint8_t light;
                     int height;
-                    bool hasBiome;
-                    bool topHeightAndHeightDontMatch;
-                    bool hasSlope;
 
                     //not a "param" but should be fetched in same context
                     RegionImage::Pixel customColor;
                     int topHeight;
                     int biome;
-                    std::variant<int32_t, nbt::tag_compound> state; // keeping support for ids because I hate nbt
+                    std::variant<int32_t /* state id */, BlockState, std::shared_ptr<const BlockState>, const BlockState* /* external state management */> state; // keeping support for ids because I hate nbt
                     int numberOfOverlays;
                     std::uint8_t version;
                     struct Overlay {
-                        bool isNotWater;
-                        bool hasOpacity;
-                        bool legacyHasOpacity;
-                        bool hasCustomColor;
-                        int light;
-                        int savedColorType;
-
-                        // not a "overlay" but should be fetched in same context
-                        int state;
-                        RegionImage::Pixel customColor;
-                        int opacity;
+                        std::uint8_t light;
+                        std::int32_t opacity;
+                        std::variant<int32_t /* state id */, BlockState, std::shared_ptr<const BlockState>, const BlockState* /* external state management */> state; // keeping support for ids because I hate nbt
                     };
-                    Overlay* overlays = nullptr;
+                    std::vector<Overlay> overlays;
 
-                    void allocateOverlays();
-
-                    ~Pixel();
+                    [[nodiscard]] inline bool hasOverlays() const;
                 };
                 Pixel (*columns)[16][16] = nullptr;
 
-                bool isVoid = true;
-
                 [[nodiscard]] Pixel* operator[] (int x);
                 [[nodiscard]] const Pixel* operator[] (int x) const;
+                [[nodiscard]] inline bool isPopulated() const;
+                [[nodiscard]] explicit inline operator bool() const;
 
                 void allocateColumns();
 
@@ -63,6 +48,8 @@ namespace xaero {
 
             [[nodiscard]] Chunk* operator[] (int x);
             [[nodiscard]] const Chunk* operator[] (int x) const;
+            [[nodiscard]] inline bool isPopulated() const;
+            [[nodiscard]] explicit inline operator bool() const;
 
             void allocateChunks();
 
