@@ -25,3 +25,4 @@ All of these dependencies are managed and downloaded by CPM in the provided CMak
 
 - [libnbt++](https://github.com/PrismLauncher/libnbtplusplus)
 - [ztd.text](https://github.com/soasis/text)
+- [minizip-ng](https://github.com/zlib-ng/minizip-ng)

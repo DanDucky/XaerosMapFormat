@@ -224,7 +224,7 @@ if (XAERO_GENERATE_RESOURCES)
 endif ()
 
 target_link_libraries(XaerosMapFormat PUBLIC nbt++)
-target_link_libraries(XaerosMapFormat PRIVATE ztd::text minizip-ng)
+target_link_libraries(XaerosMapFormat PRIVATE ztd::text minizip)
 
 set_target_properties(XaerosMapFormat PROPERTIES VERSION ${PROJECT_VERSION})
 

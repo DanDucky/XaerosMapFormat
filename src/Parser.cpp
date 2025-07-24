@@ -452,7 +452,8 @@ namespace xaero {
         std::string data;
         mz_zip_file* fileInfo = nullptr;
 
-        error = mz_zip_reader_open_file(zipReader, file.c_str());
+        // cast seems to be necessary on windows for some reason
+        error = mz_zip_reader_open_file(zipReader, reinterpret_cast<const char*>(file.c_str()));
         if (error != MZ_OK) goto cleanup_zip_reader;
 
         error = mz_zip_reader_locate_entry(zipReader, "region.xaero", false);
