@@ -20,6 +20,21 @@ file (DOWNLOAD
 include(external/cmake/get_cpm.cmake)
 
 CPMAddPackage(
+        NAME minizip-ng
+        GIT_TAG 4.0.10
+        GITHUB_REPOSITORY zlib-ng/minizip-ng
+        OPTIONS
+            "MZ_ZLIB ON"
+            "MZ_DECOMPRESS_ONLY ON"
+            "MZ_BZIP2 OFF"
+            "MZ_LZMA OFF"
+            "MZ_ZSTD OFF"
+            "MZ_OPENSSL OFF"
+            "MZ_LIBBSD OFF"
+            "MZ_ICONV OFF"
+)
+
+CPMAddPackage(
         NAME ztd.text
         GIT_TAG main
         GIT_SHALLOW ON
@@ -209,12 +224,12 @@ if (XAERO_GENERATE_RESOURCES)
 endif ()
 
 target_link_libraries(XaerosMapFormat PUBLIC nbt++)
-target_link_libraries(XaerosMapFormat PRIVATE ztd::text)
+target_link_libraries(XaerosMapFormat PRIVATE ztd::text minizip-ng)
 
 set_target_properties(XaerosMapFormat PROPERTIES VERSION ${PROJECT_VERSION})
 
 target_include_directories(XaerosMapFormat PUBLIC include)
-target_include_directories(XaerosMapFormat PRIVATE src)
+target_include_directories(XaerosMapFormat PRIVATE src ${minizip-ng_SOURCE_DIR})
 
 if (XAERO_BUILD_TESTS)
     CPMAddPackage("gh:catchorg/Catch2@3.4.0")

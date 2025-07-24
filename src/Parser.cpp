@@ -12,6 +12,13 @@
 #include "xaero/lookups/LookupTypes.hpp"
 #include "xaero/util/IndexableView.hpp"
 
+// for some reason when I remove this include I get errors, so keep mz_strm
+#include <mz_strm.h>
+#include <mz.h>
+#include <mz_zip.h>
+#include <mz_zip_rw.h>
+#include <spanstream>
+
 namespace xaero {
 
     enum class ColorType : std::uint8_t { // legacy color type system, not supported by Xaero and not rendered by this
@@ -401,10 +408,10 @@ namespace xaero {
                                                 fixBiome(getBiomeFromID(biomeID)) :
                                                 getBiomeFromID(biomeID);
                                         } else {
-                                            const auto biomeName = stream.getNextMUTF();
+                                            const auto biomeName = stream.getNextMUTF(); // mutf is garbage
                                             biome = version.first < 6 ?
                                                 fixBiome(biomeName) :
-                                                std::move(biomeName); // I can't believe they made me do this!!!
+                                                std::move(biomeName);
                                         }
 
                                         biomePalette.emplace_back(std::make_shared<std::string>(std::move(biome)));
@@ -440,13 +447,50 @@ namespace xaero {
     }
 
     Region Parser::parseRegion(const std::filesystem::path &file) {
-        auto fileStream = std::ifstream(file);
-        return parseRegion(fileStream);
+        auto zipReader = mz_zip_reader_create();
+        int32_t error = MZ_OK;
+        std::string data;
+        mz_zip_file* fileInfo = nullptr;
+
+        error = mz_zip_reader_open_file(zipReader, file.c_str());
+        if (error != MZ_OK) goto cleanup_zip_reader;
+
+        error = mz_zip_reader_locate_entry(zipReader, "region.xaero", false);
+        if (error != MZ_OK) goto cleanup_file;
+
+        error = mz_zip_reader_entry_get_info(zipReader, &fileInfo);
+        if (error != MZ_OK || !fileInfo) goto cleanup_file;
+
+        data.resize(fileInfo->uncompressed_size);
+
+        error = mz_zip_reader_entry_open(zipReader);
+        if (error != MZ_OK) goto cleanup_file;
+
+        if (const auto read = mz_zip_reader_entry_read(zipReader, data.data(), data.size());
+            read != data.size()) error = MZ_READ_ERROR;
+
+        mz_zip_reader_entry_close(zipReader);
+        cleanup_file:
+        mz_zip_reader_close(zipReader);
+        cleanup_zip_reader:
+        mz_zip_reader_delete(&zipReader);
+
+        if (error != MZ_OK) {
+            // return unexpected
+            return {};
+        }
+
+        return parseRegion(data);
     }
 
     Region Parser::parseRegion(const std::string &data) {
         std::istringstream stringStream(data);
         return parseRegion(stringStream);
+    }
+
+    Region Parser::parseRegion(const std::string_view &data) {
+        std::ispanstream stream(data);
+        return parseRegion(stream);
     }
 
     void Parser::addRegion(const std::filesystem::path &file) {

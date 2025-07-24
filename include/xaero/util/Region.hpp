@@ -17,8 +17,8 @@ namespace xaero {
 
                     std::uint8_t light;
                     std::optional<std::uint8_t> slope;
-                    int height;
-                    int topHeight;
+                    int16_t height;
+                    int16_t topHeight;
 
                     std::variant<std::shared_ptr<std::string>, std::string, std::string_view> biome; // biome ids are so unsupported that I can't even add them here :(
                     std::variant<int32_t /* state id */, BlockState, std::shared_ptr<BlockState>, const BlockState* /* external state management */> state; // keeping support for ids because I hate nbt

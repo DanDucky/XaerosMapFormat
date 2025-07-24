@@ -8,6 +8,10 @@ namespace xaero {
 
     class Parser {
     public:
+        /**
+         * @param file path to xaero zip file, please do not unzip!
+         * @return parsed region
+         */
         static Region parseRegion(const std::filesystem::path& file);
         static Region parseRegion(const std::string& data);
         static Region parseRegion(const std::string_view& data);
