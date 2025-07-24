@@ -1,42 +1,38 @@
 #pragma once
+#include <algorithm>
 #include <iostream>
 #include <cstdint>
+#include <ranges>
+
+#include "BitView.hpp"
 
 namespace xaero {
     class ByteInputStream final {
     private:
         std::istream& stream;
-        std::uint8_t subBytePosition = 0;
     public:
         explicit ByteInputStream(std::istream& inputStream);
 
-        /**
-         * @return the current input stream
-         * @warning using the stream directly will NOT update the subBytePosition correctly! Please use with caution!
-         */
         [[nodiscard]] std::istream& getStream() const;
 
         template<typename T>
         [[nodiscard]] T getNext();
 
+        /**
+         * reads in an MUTF string from the stream, necessary to interact with java's readUTF()
+         * @return c++ std::string representing the string read
+         */
+        [[nodiscard]] std::string getNextMUTF();
+
         template<typename T>
         [[nodiscard]] T peekNext();
 
-        /**
-         * @param n number of bits to advance and grab from the current byte. can only be 0 < n <= 8
-         * @return returns those bits shifted to the beginning of the byte
-         */
-        std::uint8_t getNextBits(const std::uint8_t n);
-        /**
-         * @param n number of bits to advance and grab from the current byte. can only be 0 < n <= 8
-         * @return returns those bits shifted to the beginning of the byte
-         */
-        std::uint8_t peekNextBits(const std::uint8_t n);
+        template<typename T>
+        [[nodiscard]] BitView<T> peekNextAsView();
+        template<typename T>
+        [[nodiscard]] BitView<T> getNextAsView();
 
         void skip(int n);
-        void skipBits(int n);
-
-        void skipToNextByte();
 
         [[nodiscard]] bool eof() const;
     };
@@ -45,7 +41,7 @@ namespace xaero {
     T ByteInputStream::getNext() {
         T output;
         stream.read(reinterpret_cast<char*>(&output), sizeof(T));
-        subBytePosition = 0;
+        std::ranges::reverse(reinterpret_cast<char*>(&output), reinterpret_cast<char*>(&output) + sizeof(T));
         return output;
     }
 
@@ -55,5 +51,15 @@ namespace xaero {
         const auto output = getNext<T>();
         stream.seekg(position);
         return output;
+    }
+
+    template<typename T>
+    BitView<T> ByteInputStream::peekNextAsView() {
+        return BitView<T>(peekNext<T>());
+    }
+
+    template<typename T>
+    BitView<T> ByteInputStream::getNextAsView() {
+        return BitView<T>(getNext<T>());
     }
 }

@@ -23,4 +23,5 @@ continuation and libraryfication of [XaerotoJourneyMap](https://github.com/DanDu
 
 All of these dependencies are managed and downloaded by CPM in the provided CMake file. However, they can be optionally provided at configure time.
 
-- libnbt++
+- [libnbt++](https://github.com/PrismLauncher/libnbtplusplus)
+- [ztd.text](https://github.com/soasis/text)

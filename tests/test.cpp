@@ -1,7 +1,11 @@
+#include <fstream>
+
 #include "../src/util/ByteInputStream.hpp"
 #include "catch2/catch_test_macros.hpp"
 #include <iostream>
+
 #include <xaero/util/IndexableView.hpp>
+#include <xaero/Parser.hpp>
 
 #ifdef XAERO_DEFAULT_LOOKUPS
 #   include <xaero/lookups/BlockLookups.hpp>
@@ -24,7 +28,6 @@ TEST_CASE("ByteInputSteam", "[ByteInputStream]") {
     REQUIRE(stream.getNext<char>() == 'a');
     REQUIRE(stream.peekNext<char>() == 'b');
     REQUIRE(stream.getNext<char>() == 'b');
-    stream.skipBits(8);
+    stream.skip(1);
     REQUIRE(stream.getNext<char>() == 'd');
-
 }

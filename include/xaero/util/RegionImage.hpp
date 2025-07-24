@@ -2,8 +2,6 @@
 
 #include <cstdint>
 
-#include "Constants.hpp"
-
 namespace xaero {
     /**
      * should be able to be directly fed to stb_image and written
@@ -16,7 +14,7 @@ namespace xaero {
             std::uint8_t alpha = 0;
         };
 
-        Pixel image[REGION_SIZE][REGION_SIZE];
+        Pixel image[512][512];
 
         [[nodiscard]] const Pixel* operator[] (const int x) const;
         [[nodiscard]] Pixel* operator[] (const int x);

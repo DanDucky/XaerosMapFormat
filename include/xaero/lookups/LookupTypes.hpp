@@ -50,9 +50,12 @@ namespace xaero {
     using StateIDLookupChunk = StateIDLookupElement[];
 #endif
 
+    /**
+     * @warning these are stored as references! please don't move them while using the parser
+     */
     struct LookupPack {
-        StateLookup stateLookup;
-        IndexableView<const StateIDLookupElement&> stateIdLookup;
+        StateLookup& stateLookup;
+        IndexableView<const StateIDLookupElement&>& stateIdLookup;
     };
 
 } // xaero

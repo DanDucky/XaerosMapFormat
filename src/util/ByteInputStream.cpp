@@ -2,8 +2,8 @@
 
 #include <cmath>
 #include <algorithm>
-
-#include "Math.hpp"
+#include <ztd/text/transcode.hpp>
+#include <ztd/text/utf8.hpp>
 
 
 xaero::ByteInputStream::ByteInputStream(std::istream &inputStream) : stream(inputStream) {
@@ -14,28 +14,31 @@ std::istream & xaero::ByteInputStream::getStream() const {
     return stream;
 }
 
-std::uint8_t xaero::ByteInputStream::getNextBits(const std::uint8_t n) {
-    const std::uint8_t output = peekNextBits(std::clamp<std::uint8_t>(n, 0, 8));
-    skipBits(std::clamp<std::uint8_t>(n, 0, 8));
-    return output;
-}
+std::string xaero::ByteInputStream::getNextMUTF() {
+    const auto length = getNext<std::uint16_t>();
 
-std::uint8_t xaero::ByteInputStream::peekNextBits(const std::uint8_t n) {
-    return peekNext<std::uint16_t>() >> subBytePosition & static_cast<std::uint16_t>(std::pow(2, n)) - 1;
+    if (length == 0) return "";
+
+    char8_t* const rawString = new char8_t[length];
+
+    stream.read(reinterpret_cast<char*>(rawString), length);
+
+    ztd::span<const char8_t> input(rawString, length);
+
+    auto output = ztd::text::transcode(
+        input,
+        ztd::text::mutf8,
+        ztd::text::ascii,
+        ztd::text::replacement_handler
+        );
+
+    delete[] rawString;
+
+    return output;
 }
 
 void xaero::ByteInputStream::skip(const int n) {
     stream.ignore(n);
-}
-
-void xaero::ByteInputStream::skipBits(const int n) {
-    const auto rollovers = math::addWithRollover<std::uint8_t>(subBytePosition, n, 0, 8);
-    skip(rollovers);
-}
-
-void xaero::ByteInputStream::skipToNextByte() {
-    subBytePosition = 0;
-    skip(1);
 }
 
 bool xaero::ByteInputStream::eof() const {

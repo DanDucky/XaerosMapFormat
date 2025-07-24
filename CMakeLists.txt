@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.31.0)
 set(CMAKE_CXX_STANDARD 23)
 project(XaerosMapFormat VERSION 0.1 DESCRIPTION "library for parsing XaerosMap data and rendering it to images")
 option(XAERO_BUILD_TESTS "builds catch2 tests" ON)
@@ -8,7 +8,6 @@ add_library(XaerosMapFormat
         src/Parser.cpp
         src/util/RegionImage.cpp
         src/util/ByteInputStream.cpp
-        src/util/Math.cpp
         src/util/Region.cpp
         src/lookups/LookupTypes.cpp
 )
@@ -19,6 +18,13 @@ file (DOWNLOAD
 )
 
 include(external/cmake/get_cpm.cmake)
+
+CPMAddPackage(
+        NAME ztd.text
+        GIT_TAG main
+        GIT_SHALLOW ON
+        GITHUB_REPOSITORY soasis/text
+)
 
 CPMAddPackage(
         NAME libnbt++
@@ -203,6 +209,7 @@ if (XAERO_GENERATE_RESOURCES)
 endif ()
 
 target_link_libraries(XaerosMapFormat PUBLIC nbt++)
+target_link_libraries(XaerosMapFormat PRIVATE ztd::text)
 
 set_target_properties(XaerosMapFormat PROPERTIES VERSION ${PROJECT_VERSION})
 
@@ -213,8 +220,11 @@ if (XAERO_BUILD_TESTS)
     CPMAddPackage("gh:catchorg/Catch2@3.4.0")
 
     enable_testing()
-    add_executable(tests tests/test.cpp
+
+    add_executable(tests
+            tests/test.cpp
     )
+
     target_link_libraries(tests PRIVATE Catch2::Catch2WithMain XaerosMapFormat)
 
     include(${Catch2_SOURCE_DIR}/extras/Catch.cmake)

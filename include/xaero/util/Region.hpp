@@ -1,8 +1,10 @@
 #pragma once
 
+#include <optional>
 #include <variant>
 #include <tag_compound.h>
 #include <vector>
+#include <memory>
 
 #include "RegionImage.hpp"
 
@@ -11,34 +13,32 @@ namespace xaero {
         struct TileChunk {
             struct Chunk {
                 struct Pixel {
-                    using BlockState = std::pair<const std::string, const nbt::tag_compound>;
+                    using BlockState = std::pair<std::string, nbt::tag_compound>;
 
-                    std::uint8_t colorType; // todo make enum with descriptive names
                     std::uint8_t light;
+                    std::optional<std::uint8_t> slope;
                     int height;
-
-                    //not a "param" but should be fetched in same context
-                    RegionImage::Pixel customColor;
                     int topHeight;
-                    int biome;
-                    std::variant<int32_t /* state id */, BlockState, std::shared_ptr<const BlockState>, const BlockState* /* external state management */> state; // keeping support for ids because I hate nbt
+
+                    std::variant<std::shared_ptr<std::string>, std::string, std::string_view> biome; // biome ids are so unsupported that I can't even add them here :(
+                    std::variant<int32_t /* state id */, BlockState, std::shared_ptr<BlockState>, const BlockState* /* external state management */> state; // keeping support for ids because I hate nbt
+
                     int numberOfOverlays;
-                    std::uint8_t version;
                     struct Overlay {
                         std::uint8_t light;
                         std::int32_t opacity;
-                        std::variant<int32_t /* state id */, BlockState, std::shared_ptr<const BlockState>, const BlockState* /* external state management */> state; // keeping support for ids because I hate nbt
+                        std::variant<int32_t /* state id */, BlockState, std::shared_ptr<BlockState>, const BlockState* /* external state management */> state; // keeping support for ids because I hate nbt
                     };
                     std::vector<Overlay> overlays;
 
-                    [[nodiscard]] inline bool hasOverlays() const;
+                    [[nodiscard]] bool hasOverlays() const;
                 };
                 Pixel (*columns)[16][16] = nullptr;
 
                 [[nodiscard]] Pixel* operator[] (int x);
                 [[nodiscard]] const Pixel* operator[] (int x) const;
-                [[nodiscard]] inline bool isPopulated() const;
-                [[nodiscard]] explicit inline operator bool() const;
+                [[nodiscard]] bool isPopulated() const;
+                [[nodiscard]] explicit operator bool() const;
 
                 void allocateColumns();
 
@@ -48,8 +48,8 @@ namespace xaero {
 
             [[nodiscard]] Chunk* operator[] (int x);
             [[nodiscard]] const Chunk* operator[] (int x) const;
-            [[nodiscard]] inline bool isPopulated() const;
-            [[nodiscard]] explicit inline operator bool() const;
+            [[nodiscard]] bool isPopulated() const;
+            [[nodiscard]] explicit operator bool() const;
 
             void allocateChunks();
 

@@ -5,11 +5,11 @@ bool xaero::Region::TileChunk::Chunk::Pixel::hasOverlays() const {
 }
 
 xaero::Region::TileChunk::Chunk::Pixel * xaero::Region::TileChunk::Chunk::operator[](int x) {
-    return *columns[x];
+    return (*columns)[x];
 }
 
 const xaero::Region::TileChunk::Chunk::Pixel * xaero::Region::TileChunk::Chunk::operator[](int x) const {
-    return *columns[x];
+    return (*columns)[x];
 }
 
 bool xaero::Region::TileChunk::Chunk::isPopulated() const {
@@ -26,15 +26,15 @@ void xaero::Region::TileChunk::Chunk::allocateColumns() {
 }
 
 xaero::Region::TileChunk::Chunk::~Chunk() {
-    delete[] columns;
+    delete[] reinterpret_cast<Pixel*>(columns);
 }
 
 xaero::Region::TileChunk::Chunk * xaero::Region::TileChunk::operator[](int x) {
-    return *chunks[x];
+    return (*chunks)[x];
 }
 
 const xaero::Region::TileChunk::Chunk * xaero::Region::TileChunk::operator[](int x) const {
-    return *chunks[x];
+    return (*chunks)[x];
 }
 
 bool xaero::Region::TileChunk::isPopulated() const {
@@ -51,7 +51,7 @@ void xaero::Region::TileChunk::allocateChunks() {
 }
 
 xaero::Region::TileChunk::~TileChunk() {
-    delete[] chunks;
+    delete[] reinterpret_cast<Chunk*>(chunks);
 }
 
 xaero::Region::TileChunk * xaero::Region::operator[](const int x) {
