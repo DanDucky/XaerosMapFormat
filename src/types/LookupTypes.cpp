@@ -1,5 +1,5 @@
 #include <algorithm>
-#include <xaero/lookups/LookupTypes.hpp>
+#include <xaero/types/LookupTypes.hpp>
 #include <nbt_tags.h>
 #include <ranges>
 

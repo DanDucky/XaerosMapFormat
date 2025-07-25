@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <nbt_tags.h>
 
-#include "../util/RegionImage.hpp"
+#include "RegionImage.hpp"
 #include "xaero/util/IndexableView.hpp"
 
 

@@ -5,7 +5,7 @@
 #include <iostream>
 
 #include <xaero/util/IndexableView.hpp>
-#include <xaero/Parser.hpp>
+#include <xaero/Map.hpp>
 
 #ifdef XAERO_DEFAULT_LOOKUPS
 #   include <xaero/lookups/BlockLookups.hpp>

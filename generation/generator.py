@@ -241,7 +241,7 @@ def generate_colors(blocks: dict, client : Path) -> dict :
 
 def generate_header(size : int) -> str :
     header = f"""#pragma once
-#include <xaero/lookups/LookupTypes.hpp>
+#include <xaero/types/LookupTypes.hpp>
 
 namespace {NAMESPACE} {{
     {"\n".join([f"extern const {STATE_ID_CHUNK_TYPE} {STATE_ID_NAME}_{i};" for i in range(size)])}
@@ -367,7 +367,7 @@ const {NAMESPACE}::{STATE_ID_CHUNK_TYPE} {STATE_ID_NAME}_{i} = {{
 
     source = f"""#include \"xaero/lookups/Private{file_names}.hpp\"
 #include \"xaero/lookups/{file_names}.hpp\"
-#include \"xaero/lookups/LookupTypes.hpp\"
+#include \"xaero/types/LookupTypes.hpp\"
 #include <nbt_tags.h>
 
 [[maybe_unused]] const {NAMESPACE}::{STATE_TYPE} {NAMESPACE}::{STATE_NAME} = {{

@@ -1,4 +1,4 @@
-#include "../../include/xaero/util/RegionImage.hpp"
+#include "../../include/xaero/types/RegionImage.hpp"
 
 const xaero::RegionImage::Pixel * xaero::RegionImage::operator[](const int x) const {
     return image[x];

@@ -14,6 +14,10 @@ std::istream & xaero::ByteInputStream::getStream() const {
     return stream;
 }
 
+xaero::ByteInputStream::operator std::istream&() const {
+    return stream;
+}
+
 std::string xaero::ByteInputStream::getNextMUTF() {
     const auto length = getNext<std::uint16_t>();
 

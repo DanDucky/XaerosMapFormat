@@ -23,7 +23,6 @@ namespace xaero {
                     std::variant<std::shared_ptr<std::string>, std::string, std::string_view> biome; // biome ids are so unsupported that I can't even add them here :(
                     std::variant<int32_t /* state id */, BlockState, std::shared_ptr<BlockState>, const BlockState* /* external state management */> state; // keeping support for ids because I hate nbt
 
-                    int numberOfOverlays;
                     struct Overlay {
                         std::uint8_t light;
                         std::int32_t opacity;
@@ -34,6 +33,10 @@ namespace xaero {
                     [[nodiscard]] bool hasOverlays() const;
                 };
                 Pixel (*columns)[16][16] = nullptr;
+
+                std::int32_t caveStart=0;
+                std::int8_t caveDepth=0;
+                std::int8_t chunkInterpretationVersion=1;
 
                 [[nodiscard]] Pixel* operator[] (int x);
                 [[nodiscard]] const Pixel* operator[] (int x) const;
@@ -60,5 +63,9 @@ namespace xaero {
         [[nodiscard]] TileChunk* operator[] (int x);
         [[nodiscard]] const TileChunk* operator[] (int x) const;
 
+        [[nodiscard]] const TileChunk::Chunk::Pixel* operator[](std::uint16_t relX, std::uint16_t relZ) const;
+        [[nodiscard]] TileChunk::Chunk::Pixel* operator[](std::uint16_t relX, std::uint16_t relZ);
+
+        [[nodiscard]] bool hasPixel(std::uint16_t relX, std::uint16_t relZ) const;
     };
 }

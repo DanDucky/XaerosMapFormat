@@ -15,12 +15,14 @@ namespace xaero {
 
         [[nodiscard]] std::istream& getStream() const;
 
+        [[nodiscard]] operator std::istream&() const;
+
         template<typename T>
         [[nodiscard]] T getNext();
 
         /**
          * reads in an MUTF string from the stream, necessary to interact with java's readUTF()
-         * @return c++ std::string representing the string read
+         * @return c++ std::string representing the string read in standard c++ ascii
          */
         [[nodiscard]] std::string getNextMUTF();
 

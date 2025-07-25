@@ -1,15 +1,15 @@
-#include "../include/xaero/Parser.hpp"
+#include "../include/xaero/Map.hpp"
 
 #include <fstream>
 #include <functional>
 #include <memory>
 
-#include "../include/xaero/util/RegionImage.hpp"
+#include "../include/xaero/types/RegionImage.hpp"
 #include "util/ByteInputStream.hpp"
-#include "xaero/util/Region.hpp"
+#include "../include/xaero/types/Region.hpp"
 #include <nbt_tags.h>
 
-#include "xaero/lookups/LookupTypes.hpp"
+#include "../include/xaero/types/LookupTypes.hpp"
 #include "xaero/util/IndexableView.hpp"
 
 // for some reason when I remove this include I get errors, so keep mz_strm
@@ -18,6 +18,8 @@
 #include <mz_zip.h>
 #include <mz_zip_rw.h>
 #include <spanstream>
+
+#include "util/ByteOutputStream.hpp"
 
 namespace xaero {
 
@@ -194,7 +196,7 @@ namespace xaero {
 
     }
 
-    Region Parser::parseRegion(std::istream &data) {
+    Region Map::parseRegion(std::istream &data) {
         ByteInputStream stream(data);
         Region output;
 
@@ -430,13 +432,13 @@ namespace xaero {
                     }
 
                     if (version.second >= 4) {
-                        stream.skip(1); // chunk interpretation version?
+                        chunk.chunkInterpretationVersion = stream.getNext<std::int8_t>();
                     }
 
                     if (version.second >= 6) { // cave layers stuff... I don't feel like implementing this
-                        stream.skip(4);
+                        chunk.caveStart = stream.getNext<std::int32_t>();
                         if (version.second >= 7) {
-                            stream.skip(1);
+                            chunk.caveDepth = stream.getNext<std::int8_t>();
                         }
                     }
                 }
@@ -446,7 +448,22 @@ namespace xaero {
         return output;
     }
 
-    Region Parser::parseRegion(const std::filesystem::path &file) {
+    inline void serializeRegionImpl(const Region& region, ByteOutputStream& stream, std::function<void(std::size_t)> reserve, const LookupPack& lookups) {
+        stream.write<std::uint8_t>(255); // has version
+
+        stream.write<std::uint16_t>(6); // "major version"
+        stream.write<std::uint16_t>(8); // "minor version"
+    }
+
+    std::string Map::serializeRegion(const Region &region, const LookupPack &lookups) {
+        std::string output;
+        auto stringStream = std::ostringstream(output);
+        ByteOutputStream stream(stringStream);
+        serializeRegionImpl(region, stream, [&output](const std::size_t size) {output.reserve(size);}, lookups);
+        return output;
+    }
+
+    Region Map::parseRegion(const std::filesystem::path &file) {
         auto zipReader = mz_zip_reader_create();
         int32_t error = MZ_OK;
         std::string data;
@@ -481,39 +498,24 @@ namespace xaero {
             return {};
         }
 
-        return parseRegion(data);
-    }
-
-    Region Parser::parseRegion(const std::string &data) {
-        std::istringstream stringStream(data);
-        return parseRegion(stringStream);
-    }
-
-    Region Parser::parseRegion(const std::string_view &data) {
-        std::ispanstream stream(data);
+        auto stream = std::istringstream(data);
         return parseRegion(stream);
     }
 
-    void Parser::addRegion(const std::filesystem::path &file) {
+    void Map::addRegion(const std::filesystem::path &file) {
     }
 
-    void Parser::addRegion(const std::string &data) {
+    void Map::clearRegions() {
     }
 
-    void Parser::addRegion(const std::string_view &data) {
+    void Map::removeRegion(int x, int z) {
     }
 
-    void Parser::clearRegions() {
-    }
-
-    void Parser::removeRegion(int x, int z) {
-    }
-
-    RegionImage Parser::generateImage(int x, int z) const {
+    RegionImage Map::generateImage(int x, int z) const {
         return {};
     }
 
-    std::list<RegionImage> Parser::generateImages() const {
+    std::list<RegionImage> Map::generateImages() const {
         return {};
     }
 

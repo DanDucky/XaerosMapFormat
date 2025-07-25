@@ -5,11 +5,12 @@ option(XAERO_BUILD_TESTS "builds catch2 tests" ON)
 option(XAERO_GENERATE_RESOURCES "generates minecraft lookup tables for colors and names, requires java and python" ON)
 
 add_library(XaerosMapFormat
-        src/Parser.cpp
-        src/util/RegionImage.cpp
+        src/Map.cpp
         src/util/ByteInputStream.cpp
-        src/util/Region.cpp
-        src/lookups/LookupTypes.cpp
+        src/util/ByteOutputStream.cpp
+        src/types/RegionImage.cpp
+        src/types/Region.cpp
+        src/types/LookupTypes.cpp
 )
 
 file (DOWNLOAD
@@ -25,7 +26,6 @@ CPMAddPackage(
         GITHUB_REPOSITORY zlib-ng/minizip-ng
         OPTIONS
             "MZ_ZLIB ON"
-            "MZ_DECOMPRESS_ONLY ON"
             "MZ_BZIP2 OFF"
             "MZ_LZMA OFF"
             "MZ_ZSTD OFF"
@@ -194,9 +194,30 @@ if (XAERO_GENERATE_RESOURCES)
         )
     endif()
 
+    configure_file(
+            ${CMAKE_SOURCE_DIR}/generation/generator.py
+            ${WORKING_DIRECTORY}/generator.py.stamp
+            COPYONLY
+    )
+
+    file(SHA256 ${CMAKE_SOURCE_DIR}/generation/generator.py CURRENT_HASH)
+    set(REQUIRES_GENERATION OFF)
+
+    if (NOT EXISTS ${WORKING_DIRECTORY}/GeneratorHash.txt)
+        file(WRITE ${WORKING_DIRECTORY}/GeneratorHash.txt ${CURRENT_HASH})
+        set(REQUIRES_GENERATION ON)
+    else ()
+        file(READ ${WORKING_DIRECTORY}/GeneratorHash.txt PREVIOUS_HASH)
+        string(STRIP "${PREVIOUS_HASH}" PREVIOUS_HASH)
+        if (NOT PREVIOUS_HASH STREQUAL CURRENT_HASH)
+            set(REQUIRES_GENERATION ON)
+            file(WRITE ${WORKING_DIRECTORY}/GeneratorHash.txt ${CURRENT_HASH})
+        endif ()
+    endif ()
+
     set(GENERATED_FILE_NAMES "BlockLookups")
 
-    if ((NOT EXISTS ${WORKING_DIRECTORY}/generated/manifest.txt) OR REQUIRES_DOWNLOAD)
+    if ((NOT EXISTS ${WORKING_DIRECTORY}/generated/manifest.txt) OR REQUIRES_DOWNLOAD OR REQUIRES_GENERATION)
         execute_process(
                 COMMAND
                 ${VENV_PYTHON} ${CMAKE_SOURCE_DIR}/generation/generator.py
@@ -208,6 +229,7 @@ if (XAERO_GENERATE_RESOURCES)
         )
 
         if (NOT GENERATOR_RESULT EQUAL 0)
+            file(REMOVE ${WORKING_DIRECTORY}/generated/manifest.txt)
             message(FATAL_ERROR "Failed to generate lookup headers!")
         endif ()
     endif()
