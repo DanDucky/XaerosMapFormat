@@ -25,15 +25,15 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         build_type: [Release]
-        c_compiler: [clang, cl] # I have to remove gcc for now because the text library doesn't work with it for some reason
+        c_compiler: [clang, cl, gcc]
         configure_flags: ["-DXAERO_GENERATE_RESOURCES=1", "-DXAERO_GENERATE_RESOURCES=0"]
         include:
           - os: windows-latest
             c_compiler: cl
             cpp_compiler: cl
-#          - os: ubuntu-latest
-#            c_compiler: gcc
-#            cpp_compiler: g++
+          - os: ubuntu-latest
+            c_compiler: gcc
+            cpp_compiler: g++
           - os: ubuntu-latest
             c_compiler: clang
             cpp_compiler: clang++

@@ -1,6 +1,7 @@
 #pragma once
 #include <filesystem>
 #include <list>
+#include <span>
 
 #include "types/LookupTypes.hpp"
 #include "types/Region.hpp"

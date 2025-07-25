@@ -1,6 +1,8 @@
 #pragma once
 
 #include <ostream>
+#include <cstdint>
+#include <cstddef>
 
 #include "BitWriter.hpp"
 

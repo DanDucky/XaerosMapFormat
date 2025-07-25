@@ -3,6 +3,7 @@
 #include <bitset>
 #include <cmath>
 #include <memory>
+#include <cstddef>
 
 template <typename T>
 class BitView {
