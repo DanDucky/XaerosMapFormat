@@ -3,6 +3,7 @@
 #include <fstream>
 #include <functional>
 #include <memory>
+#include <algorithm>
 
 #include "../include/xaero/types/RegionImage.hpp"
 #include "util/ByteInputStream.hpp"
@@ -20,6 +21,7 @@
 #include <spanstream>
 
 #include "util/ByteOutputStream.hpp"
+#include "util/OptionalOwnerPtr.hpp"
 
 namespace xaero {
 
@@ -93,8 +95,8 @@ namespace xaero {
         return lookup[biomeID];
     }
 
-    static void convertNBT(std::unique_ptr<nbt::tag_compound>& nbt, const std::pair<std::int16_t, std::int16_t>& version) {
-        if (version.first == 1) {
+    static void convertNBT(std::unique_ptr<nbt::tag_compound>& nbt, const std::int16_t majorVersion) {
+        if (majorVersion == 1) {
             const auto name = nbt->at("Name").as<nbt::tag_string>().get();
             static const std::map<std::string_view, std::string_view> convert {
                 {"minecraft:stone_slab", "minecraft:smooth_stone_slab"},
@@ -104,7 +106,7 @@ namespace xaero {
             nbt->put("Name", (fixed != convert.end() ? fixed->second : name).data());
         }
 
-        if (version.first < 3) {
+        if (majorVersion < 3) {
             const auto name = nbt->at("Name").as<nbt::tag_string>().get();
             static const auto wallFix = [](std::unique_ptr<nbt::tag_compound>& tag) -> void {
                 auto& properties = tag->at("Properties").as<nbt::tag_compound>();
@@ -169,7 +171,7 @@ namespace xaero {
             }
         }
 
-        if (version.first < 5) {
+        if (majorVersion < 5) {
             const auto name = nbt->at("Name").as<nbt::tag_string>().get();
             static const std::map<std::string_view, std::function<void(std::unique_ptr<nbt::tag_compound>&)>> convert {
                 {"minecraft:cauldron",  [](std::unique_ptr<nbt::tag_compound>& tag) {
@@ -198,7 +200,7 @@ namespace xaero {
 
     Region Map::parseRegion(std::istream &data) {
         ByteInputStream stream(data);
-        Region output;
+        Region region;
 
         /*
          The reason these use std::shared_ptr instead of a non owning ptr or view to some private vector owned by the region
@@ -208,27 +210,26 @@ namespace xaero {
          Even though careful programming could fix all of these issues, I really don't think it's worth the risk
          */
 
-        std::vector<std::shared_ptr<Region::TileChunk::Chunk::Pixel::BlockState>> statePalette{};
+        std::vector<std::shared_ptr<BlockState>> statePalette{};
         std::vector<std::shared_ptr<std::string>> biomePalette{};
 
         const bool hasFullVersion = stream.peekNext<std::uint8_t>() == 255;
-        std::pair<std::int16_t, std::int16_t> version;
 
         bool is115not114 = false;
         if (hasFullVersion) {
             stream.skip(1);
-            version.first = stream.getNext<std::int16_t>();
-            version.second = stream.getNext<std::int16_t>();
-            if (version.first == 2 && version.second >= 5) {
+            region.majorVersion = stream.getNext<std::int16_t>();
+            region.minorVersion = stream.getNext<std::int16_t>();
+            if (region.majorVersion == 2 && region.minorVersion >= 5) {
                 is115not114 = stream.getNext<std::uint8_t>() == 1; // idk what this is for tbh
             }
 
-            if (version.first >= 6 && version.second > 8) {
-                // too new... idk what to do here
+            if (region.majorVersion > 6 || region.minorVersion > 8) {
+                // unrecognized version... return unexpected
             }
         }
 
-        const bool usesColorTypes = version.second < 5 || version.first <= 2 && !is115not114;
+        const bool usesColorTypes = region.minorVersion < 5 || region.majorVersion <= 2 && !is115not114;
 
         for (std::uint8_t tileCount = 0; tileCount < 8*8; tileCount++) { // just for max iterations
 
@@ -237,7 +238,7 @@ namespace xaero {
                 break;
             }
 
-            Region::TileChunk& tile = output[coordinates.getNextBits(4)][coordinates.getNextBits(4)];
+            Region::TileChunk& tile = region[coordinates.getNextBits(4)][coordinates.getNextBits(4)];
             tile.allocateChunks();
             for (auto& chunkRow : *tile.chunks) {
                 for (auto& chunk : chunkRow) {
@@ -253,9 +254,12 @@ namespace xaero {
                             auto parameters = stream.getNextAsView<std::uint32_t>();
                             const bool isNotGrass = parameters.getNextBits(1);
                             const bool hasOverlays = parameters.getNextBits(1);
-                            const auto colorType = usesColorTypes ? static_cast<ColorType>(parameters.getNextBits(2)) : ColorType::NONE;
+                            const auto colorType = usesColorTypes ? static_cast<ColorType>(parameters.peekNextBits(2)) : ColorType::NONE;
+
+                            parameters.skipBits(2);
+
                             bool hasSlope = false;
-                            if (version.second == 2) {
+                            if (region.minorVersion == 2) {
                                 hasSlope = parameters.getNextBits(1);
                             } else {
                                 parameters.skipBits(1);
@@ -272,8 +276,9 @@ namespace xaero {
                             const bool newStatePaletteEntry = parameters.getNextBits(1);
                             const bool newBiomePaletteEntry = parameters.getNextBits(1);
                             const bool biomeAsInt = parameters.getNextBits(1);
-                            const bool topHeightAndHeightDontMatch = version.second >= 4 ? parameters.getNextBits(1) : false;
+                            const bool topHeightAndHeightDontMatch = region.minorVersion >= 4 ? parameters.getNextBits(1) : false;
                             if (heightInParameters) {
+                                // todo this probably breaks on big endian machines
                                 pixel.height |= static_cast<std::uint16_t>(parameters.getNextBits(4)) << 8;
                                 // converting 12 bit signed to 16 bit signed
                                 pixel.height &= 0x0FFF; // mask out garbage
@@ -285,7 +290,7 @@ namespace xaero {
                             // done with parameters
 
                             if (isNotGrass) {
-                                if (version.first == 0) { // old format, state is a state id
+                                if (region.majorVersion == 0) { // old format, state is a state id
                                     const auto state = stream.getNext<int32_t>();
                                     pixel.state = state;
                                 } else {
@@ -294,10 +299,10 @@ namespace xaero {
 
                                         auto nbt = nbtStream.read_compound();
 
-                                        if (version.first < 6) {
-                                            convertNBT(nbt.second, version); // make it up to date pls !
+                                        if (region.majorVersion < 6) {
+                                            convertNBT(nbt.second, region.majorVersion); // make it up to date pls !
                                         }
-                                        statePalette.emplace_back(std::make_shared<Region::TileChunk::Chunk::Pixel::BlockState>(std::move(nbt.first), std::move(*nbt.second))); // copy the stupid compound tag because why is that a ptr
+                                        statePalette.emplace_back(std::make_shared<BlockState>(std::move(*nbt.second))); // copy the stupid compound tag because why is that a ptr
                                         pixel.state = statePalette.back();
                                     } else {
                                         const auto paletteIndex = stream.getNext<int32_t>();
@@ -338,7 +343,7 @@ namespace xaero {
 
                                     const bool newOverlayStatePaletteEntry = overlayParameters.getNextBits(1);
 
-                                    if (version.second >= 8) {
+                                    if (region.minorVersion >= 8) {
                                         overlay.opacity = overlayParameters.getNextBits(4);
                                     }
 
@@ -347,7 +352,7 @@ namespace xaero {
                                     if (isWater) {
                                         overlay.state = 86; // default water state
                                     } else {
-                                        if (version.first == 0) {
+                                        if (region.majorVersion == 0) {
                                             overlay.state = stream.getNext<std::int32_t>();
                                         } else {
                                             if (newOverlayStatePaletteEntry) {
@@ -355,7 +360,7 @@ namespace xaero {
 
                                                 const auto nbt = nbtStream.read_compound();
 
-                                                statePalette.emplace_back(std::make_shared<Region::TileChunk::Chunk::Pixel::BlockState>(std::move(nbt.first), std::move(*nbt.second)));
+                                                statePalette.emplace_back(std::make_shared<BlockState>(std::move(*nbt.second)));
                                                 overlay.state = statePalette.back();
                                             } else {
                                                 overlay.state = statePalette[stream.getNext<std::int32_t>()];
@@ -365,7 +370,7 @@ namespace xaero {
 
                                     // so I know this is just skipping "important" info, but this is exactly what Xaero does and I can't be bothered to fix it
 
-                                    if (version.second < 1 && legacyOpacity) {
+                                    if (region.minorVersion < 1 && legacyOpacity) {
                                         stream.skip(4);
                                     }
 
@@ -373,7 +378,7 @@ namespace xaero {
                                         stream.skip(4);
                                     }
 
-                                    if (version.second < 8 && hasOpacity) {
+                                    if (region.minorVersion < 8 && hasOpacity) {
                                         overlay.opacity = stream.getNext<std::int32_t>();
                                     }
                                 }
@@ -384,7 +389,7 @@ namespace xaero {
                             }
 
                             if (colorType != ColorType::NONE && colorType != ColorType::CUSTOM_BIOME || hasBiome) {
-                                if (version.first < 4) {
+                                if (region.majorVersion < 4) {
                                     const auto biomeByte = stream.getNext<std::uint8_t>();
 
                                     // so the old biome id system is completely depreciated in modern mc and modern mc.
@@ -392,12 +397,12 @@ namespace xaero {
                                     // anything beyond 255 or modded will just become minecraft:plains until it's properly overridden by the user
 
                                     std::uint32_t biomeID;
-                                    if (version.second >= 3 && biomeByte >= 255) { // have to continue reading, one byte isn't enough!
+                                    if (region.minorVersion >= 3 && biomeByte >= 255) { // have to continue reading, one byte isn't enough!
                                         biomeID = stream.getNext<std::int32_t>();
                                     } else {
                                         biomeID = biomeByte;
                                     }
-                                    pixel.biome = version.first < 6 ?
+                                    pixel.biome = region.majorVersion < 6 ?
                                         fixBiome(getBiomeFromID(biomeID)) :
                                         getBiomeFromID(biomeID);
                                 } else {
@@ -406,12 +411,12 @@ namespace xaero {
                                         if (biomeAsInt) {
                                             std::cout << "biome as int palette!\n";
                                             const auto biomeID = stream.getNext<std::int32_t>();
-                                            biome = version.first < 6 ?
+                                            biome = region.majorVersion < 6 ?
                                                 fixBiome(getBiomeFromID(biomeID)) :
                                                 getBiomeFromID(biomeID);
                                         } else {
                                             const auto biomeName = stream.getNextMUTF(); // mutf is garbage
-                                            biome = version.first < 6 ?
+                                            biome = region.majorVersion < 6 ?
                                                 fixBiome(biomeName) :
                                                 std::move(biomeName);
                                         }
@@ -425,19 +430,19 @@ namespace xaero {
                                 }
                             }
 
-                            if (version.second == 2 && hasSlope) {
+                            if (region.minorVersion == 2 && hasSlope) {
                                 pixel.slope = stream.getNext<std::uint8_t>();
                             }
                         }
                     }
 
-                    if (version.second >= 4) {
+                    if (region.minorVersion >= 4) {
                         chunk.chunkInterpretationVersion = stream.getNext<std::int8_t>();
                     }
 
-                    if (version.second >= 6) { // cave layers stuff... I don't feel like implementing this
+                    if (region.minorVersion >= 6) { // cave layers stuff... I don't feel like implementing this
                         chunk.caveStart = stream.getNext<std::int32_t>();
-                        if (version.second >= 7) {
+                        if (region.minorVersion >= 7) {
                             chunk.caveDepth = stream.getNext<std::int8_t>();
                         }
                     }
@@ -445,14 +450,261 @@ namespace xaero {
             }
         }
 
-        return output;
+        return region;
     }
 
     inline void serializeRegionImpl(const Region& region, ByteOutputStream& stream, std::function<void(std::size_t)> reserve, const LookupPack& lookups) {
+        reserve(5);
+
         stream.write<std::uint8_t>(255); // has version
 
         stream.write<std::uint16_t>(6); // "major version"
         stream.write<std::uint16_t>(8); // "minor version"
+
+        std::vector<OptionalOwnerPtr<const BlockState>> statePalette;
+        auto findStateInPalette = [&statePalette](const OptionalOwnerPtr<const BlockState>& state) -> std::optional<std::size_t> {
+            const auto found = std::ranges::find_if(statePalette.begin(), statePalette.end(), [&state](const OptionalOwnerPtr<const BlockState>& b) -> bool {
+                return *state.pointer == *b.pointer;
+            });
+
+            if (found == statePalette.end()) {
+                return {};
+            }
+            return found - statePalette.begin();
+        };
+        std::vector<std::string_view> biomePalette;
+
+        for (std::uint8_t tileX = 0; tileX < 8; tileX++) {
+            for (std::uint8_t tileZ = 0; tileZ < 8; tileZ++) {
+                if (!region[tileX][tileZ].isPopulated()) continue;
+
+                reserve(4*4*4 + stream.getStream().tellp());
+
+                BitWriter<std::uint8_t> coordinates;
+                coordinates.writeNext(tileX, 4);
+                coordinates.writeNext(tileZ, 4);
+
+                stream.write(coordinates); // tile chunk coordinates
+
+                const auto& tileChunk = region[tileX][tileZ];
+
+                for (auto& chunkRow : *tileChunk.chunks) {
+                    for (auto& chunk : chunkRow) {
+                        if (!chunk.isPopulated()) {
+                            stream.write<std::int32_t>(-1);
+                            continue;
+                        }
+
+                        for (auto& pixelRow : *chunk.columns) {
+                            for (auto& pixel : pixelRow) {
+                                BitWriter<std::uint32_t> parameters;
+
+                                bool isGrass = false;
+
+                                OptionalOwnerPtr<const BlockState> state;
+
+                                if (std::holds_alternative<std::monostate>(pixel.state)) {
+                                    state = OptionalOwnerPtr<const BlockState>(&lookups.stateIDLookup[0].value().state, false);
+                                } else if (std::holds_alternative<std::int32_t>(pixel.state)) { // get state from id
+                                    if (const auto stateID = std::get<std::int32_t>(pixel.state);
+                                        stateID == 9 || stateID == 8) {
+
+                                        isGrass = true;
+                                    } else {
+                                        if (stateID >= lookups.stateIDLookupSize) { // out of bounds...
+                                            state = OptionalOwnerPtr<const BlockState>(&lookups.stateIDLookup[0].value().state, false);
+                                        } else {
+                                            if (const auto statePack = lookups.stateIDLookup[stateID];
+                                                !statePack) {
+
+                                                state = OptionalOwnerPtr<const BlockState>(&lookups.stateIDLookup[0].value().state, false);
+                                            } else {
+                                                state = OptionalOwnerPtr(&statePack.value().state, false);
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    if (std::holds_alternative<BlockState*>(pixel.state)) {
+                                        state = OptionalOwnerPtr<const BlockState>(std::get<BlockState*>(pixel.state), false);
+                                    } else if (std::holds_alternative<BlockState>(pixel.state)) {
+                                        state = OptionalOwnerPtr<const BlockState>(&std::get<BlockState>(pixel.state), false);
+                                    } else if (std::holds_alternative<std::shared_ptr<BlockState>>(pixel.state)) {
+                                        state = OptionalOwnerPtr<const BlockState>(std::get<std::shared_ptr<BlockState>>(pixel.state).get(), false);
+                                    }
+
+                                    if (state.pointer->name.contains("grass_block")) {
+                                        isGrass = true;
+                                    }
+                                }
+
+                                parameters.writeNext(isGrass, 1);
+                                parameters.writeNext(pixel.hasOverlays(), 1);
+                                parameters.writeNext(ColorType::NONE, 2);
+                                parameters.skip(1); // slope is no longer supported
+                                parameters.writeNext(true, 1); // write height separately
+                                parameters.skipToNextByte();
+                                parameters.writeNext(pixel.light, 4);
+                                parameters.skip(8); // height will be inserted later
+                                parameters.writeNext(pixel.biome.has_value(), 1);
+
+                                bool stateInPalette = isGrass;
+                                std::size_t statePaletteIndex = 0;
+                                if (!isGrass) {
+                                    const auto found = findStateInPalette(state);
+
+                                    stateInPalette = found.has_value();
+                                    if (found.has_value()) {
+                                        statePaletteIndex = found.value();
+                                    }
+                                }
+
+                                parameters.writeNext(!stateInPalette, 1);
+
+                                bool biomeInPalette = !pixel.biome.has_value();
+                                std::size_t biomePaletteIndex = 0;
+                                std::string_view biome;
+                                if (pixel.biome.has_value()) {
+                                    if (std::holds_alternative<std::shared_ptr<std::string>>(pixel.biome.value())) {
+                                        biome = *std::get<std::shared_ptr<std::string>>(pixel.biome.value());
+                                    } else if (std::holds_alternative<std::string>(pixel.biome.value())) {
+                                        biome = std::get<std::string>(pixel.biome.value());
+                                    } else if (std::holds_alternative<std::string_view>(pixel.biome.value())) {
+                                        biome = std::get<std::string_view>(pixel.biome.value());
+                                    }
+
+                                    const auto foundSplit = biome.find(':');
+                                    if (foundSplit != std::string::npos) {
+                                        biome = std::string_view(biome.begin() + foundSplit + 1, biome.end());
+                                    }
+
+                                    if (const auto found = std::ranges::find(biomePalette.begin(), biomePalette.end(), biome);
+                                        found == biomePalette.end()) {
+
+                                        biomeInPalette = false;
+                                    } else {
+                                        biomeInPalette = true;
+                                        biomePaletteIndex = found - biomePalette.begin();
+                                    }
+                                }
+
+                                parameters.writeNext(!biomeInPalette, 1);
+                                parameters.writeNext(false, 1); // biome is id
+                                parameters.writeNext(pixel.topHeight.has_value(), 1);
+
+                                stream.write(parameters); // pixel parameters
+
+                                if (!isGrass) {
+                                    if (stateInPalette) {
+                                        stream.write<std::uint32_t>(statePaletteIndex);
+                                    } else {
+                                        nbt::io::stream_writer nbtWriter(stream.getStream());
+
+                                        nbtWriter.write_payload(state.pointer->getNBT());
+
+                                        statePalette.push_back(std::move(state));
+                                    }
+                                }
+
+                                if (pixel.topHeight.has_value()) {
+                                    stream.write<std::int8_t>(pixel.topHeight.value());
+                                }
+
+                                if (pixel.hasOverlays()) {
+                                    stream.write<std::uint8_t>(pixel.overlays.size());
+
+                                    for (const auto& overlay : pixel.overlays) {
+                                        BitWriter<std::uint32_t> overlayParameters;
+
+                                        bool isWater = false;
+                                        if (std::holds_alternative<std::monostate>(overlay.state)) {
+                                            state = OptionalOwnerPtr<const BlockState>(&lookups.stateIDLookup[0].value().state, false);
+                                        } else if (std::holds_alternative<std::int32_t>(overlay.state)) {
+                                            if (const auto stateID = std::get<std::int32_t>(overlay.state);
+                                                stateID == 86) {
+
+                                                isWater = true;
+                                            } else {
+                                                if (stateID >= lookups.stateIDLookupSize) {
+                                                    state = OptionalOwnerPtr<const BlockState>(&lookups.stateIDLookup[0].value().state, false);
+                                                } else {
+                                                    if (const auto statePack = lookups.stateIDLookup[stateID];
+                                                        !statePack) {
+
+                                                        state = OptionalOwnerPtr<const BlockState>(&lookups.stateIDLookup[0].value().state, false);
+                                                    } else {
+                                                        state = OptionalOwnerPtr(&statePack.value().state, false);
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            if (std::holds_alternative<BlockState*>(overlay.state)) {
+                                                state = OptionalOwnerPtr<const BlockState>(std::get<BlockState*>(overlay.state), false);
+                                            } else if (std::holds_alternative<BlockState>(overlay.state)) {
+                                                state = OptionalOwnerPtr<const BlockState>(&std::get<BlockState>(overlay.state), false);
+                                            } else if (std::holds_alternative<std::shared_ptr<BlockState>>(overlay.state)) {
+                                                state = OptionalOwnerPtr<const BlockState>(std::get<std::shared_ptr<BlockState>>(overlay.state).get(), false);
+                                            }
+
+                                            if (state.pointer->name.ends_with("water") /* todo this is a bad impl, should strip and check the whole string */) {
+                                                isWater = true;
+                                            }
+                                        }
+
+                                        overlayParameters.writeNext(!isWater, 1);
+                                        overlayParameters.writeNext(false, 1); // legacy opacity
+                                        overlayParameters.writeNext(false, 1); // custom color (legacy)
+                                        overlayParameters.writeNext(overlay.opacity.has_value(), 1);
+                                        overlayParameters.writeNext(overlay.light, 4);
+                                        overlayParameters.writeNext(ColorType::NONE, 2); // legacy
+
+                                        bool overlayStateInPalette = isWater;
+                                        std::size_t overlayStatePaletteIndex = 0;
+                                        if (!isWater) {
+                                            const auto found = findStateInPalette(state);
+                                            overlayStateInPalette = found.has_value();
+                                            if (found.has_value()) {
+                                                overlayStatePaletteIndex = found.value();
+                                            }
+                                        }
+
+                                        overlayParameters.writeNext(!overlayStateInPalette, 1);
+                                        if (overlay.opacity) {
+                                            overlayParameters.writeNext(overlay.opacity.value(), 4);
+                                        }
+                                        if (!isWater) {
+                                            if (overlayStateInPalette) {
+                                                stream.write<std::uint32_t>(overlayStatePaletteIndex);
+                                            } else {
+                                                nbt::io::stream_writer nbtWriter(stream.getStream());
+
+                                                nbtWriter.write_payload(state.pointer->getNBT());
+
+                                                statePalette.push_back(std::move(state));
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (pixel.biome.has_value()) {
+                                    if (biomeInPalette) {
+                                        stream.write<std::uint32_t>(biomePaletteIndex);
+                                    } else {
+                                        const std::string biomeFull = std::format("minecraft:{}", biome);
+                                        stream.writeMUTF(biomeFull);
+
+                                        biomePalette.push_back(biome);
+                                    }
+                                }
+                            }
+                        }
+
+                        stream.write<std::uint8_t>(chunk.chunkInterpretationVersion);
+                        stream.write<std::int32_t>(chunk.caveStart);
+                        stream.write<std::uint8_t>(chunk.caveDepth);
+                    }
+                }
+            }
+        }
     }
 
     std::string Map::serializeRegion(const Region &region, const LookupPack &lookups) {
@@ -500,9 +752,6 @@ namespace xaero {
 
         auto stream = std::istringstream(data);
         return parseRegion(stream);
-    }
-
-    void Map::addRegion(const std::filesystem::path &file) {
     }
 
     void Map::clearRegions() {

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cstdint>
 #include <ranges>
+#include <bit>
 
 #include "BitView.hpp"
 
@@ -43,7 +44,18 @@ namespace xaero {
     T ByteInputStream::getNext() {
         T output;
         stream.read(reinterpret_cast<char*>(&output), sizeof(T));
-        std::ranges::reverse(reinterpret_cast<char*>(&output), reinterpret_cast<char*>(&output) + sizeof(T));
+
+        if constexpr (std::endian::native == std::endian::little) {
+            std::ranges::reverse(reinterpret_cast<char*>(&output), reinterpret_cast<char*>(&output) + sizeof(T));
+        } else if constexpr (std::endian::native != std::endian::big) {
+            // test endianness at runtime
+            union {
+                std::uint16_t value = 1;
+                std::uint8_t array[2];
+            };
+            if (array[0] == 1) std::ranges::reverse(reinterpret_cast<char*>(&output), reinterpret_cast<char*>(&output) + sizeof(T));
+        }
+
         return output;
     }
 

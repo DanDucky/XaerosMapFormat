@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <nbt_tags.h>
 
+#include "BlockState.hpp"
 #include "RegionImage.hpp"
 #include "xaero/util/IndexableView.hpp"
 
@@ -22,8 +23,7 @@ namespace xaero {
     };
 
     struct StateIDPack {
-        std::string_view name;
-        nbt::tag_compound properties;
+        BlockState state;
         RegionImage::Pixel color;
     };
 
@@ -54,8 +54,9 @@ namespace xaero {
      * @warning these are stored as references! please don't move them while using the parser
      */
     struct LookupPack {
-        StateLookup& stateLookup;
-        IndexableView<const StateIDLookupElement&>& stateIdLookup;
+        const StateLookup& stateLookup;
+        const IndexableView<const StateIDLookupElement&>& stateIDLookup;
+        const std::size_t stateIDLookupSize;
     };
 
 } // xaero

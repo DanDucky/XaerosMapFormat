@@ -3,6 +3,7 @@
 #include <list>
 #include <span>
 
+#include "lookups/BlockLookups.hpp"
 #include "types/LookupTypes.hpp"
 #include "types/Region.hpp"
 
@@ -19,29 +20,55 @@ namespace xaero {
         static Region parseRegion(const std::span<std::uint8_t>& data);
         static Region parseRegion(std::istream& data);
 
-        static std::string serializeRegion(const Region& region, const LookupPack& lookups);
-        static std::string packRegion(const std::vector<std::uint8_t>& serialized);
+        static std::string serializeRegion(const Region& region, const LookupPack& lookups
+#ifdef XAERO_DEFAULT_LOOKUPS
+        ={defaultStateLookup, defaultStateIDLookup, defaultStateIDLookupSize}
+#endif
+        );
+        static std::string packRegion(const std::span<std::uint8_t>& serialized);
+        static void writeRegion(const Region& region, const std::filesystem::path& path, const LookupPack& lookups
+#ifdef XAERO_DEFAULT_LOOKUPS
+        ={defaultStateLookup, defaultStateIDLookup, defaultStateIDLookupSize}
+#endif
+        );
+
+        static void writeRegion(const std::span<std::uint8_t>& serialized, const std::filesystem::path& path);
 
         static RegionImage generateImage(const Region& region);
         static RegionImage generateImage(const std::filesystem::path& file);
         static RegionImage generateImage(const std::span<std::uint8_t>& data);
         static RegionImage generateImage(std::istream& data);
 
-        void addRegion(const std::filesystem::path& file);
-        void addRegion(const std::span<std::uint8_t>& data);
-        void addRegion(std::istream& data);
-        void addRegion(const Region region);
+        enum class MergeType : std::uint8_t {
+            OVERRIDE,
+            ABOVE,
+            BELOW
+        };
+
+        void addRegion(const std::filesystem::path& file, MergeType merge=MergeType::OVERRIDE);
+        void addRegion(const std::span<std::uint8_t>& data, MergeType merge=MergeType::OVERRIDE);
+        void addRegion(std::istream& data, MergeType merge=MergeType::OVERRIDE);
+        void addRegion(const Region region, MergeType merge=MergeType::OVERRIDE);
 
         void addPixel(const Region::TileChunk::Chunk::Pixel pixel, std::int32_t x, std::int32_t z);
         void addChunk(const Region::TileChunk::Chunk chunk, std::int32_t chunkX, std::int32_t chunkZ);
 
         void clearRegions();
         void removeRegion(std::int32_t x, std::int32_t z);
+        void removeChunk(std::int32_t x, std::int32_t z);
 
         [[nodiscard]] RegionImage generateImage(std::int32_t x, std::int32_t z) const;
         [[nodiscard]] std::list<RegionImage> generateImages() const;
 
-        [[nodiscard]] Region getParsedRegion(std::int32_t x, std::int32_t z) const;
+        [[nodiscard]] const Region* getRegion(std::int32_t x, std::int32_t z) const;
+        [[nodiscard]] Region* getRegion(std::int32_t x, std::int32_t z);
+
+        [[nodiscard]] const Region::TileChunk::Chunk* getChunk(std::int32_t x, std::int32_t z) const;
+        [[nodiscard]] Region::TileChunk::Chunk* getChunk(std::int32_t x, std::int32_t z);
+
+        [[nodiscard]] const Region::TileChunk::Chunk::Pixel* getPixel(std::int32_t x, std::int32_t z) const;
+        [[nodiscard]] Region::TileChunk::Chunk::Pixel* getPixel(std::int32_t x, std::int32_t z);
+
         [[nodiscard]] std::list<Region> getParsedRegions() const;
     };
 }

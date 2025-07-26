@@ -25,6 +25,9 @@ void xaero::Region::TileChunk::Chunk::allocateColumns() {
     columns = reinterpret_cast<Pixel(*)[16][16]>(new Pixel[16 * 16]);
 }
 
+xaero::Region::TileChunk::Chunk::Chunk() : chunkInterpretationVersion(1) {
+}
+
 xaero::Region::TileChunk::Chunk::~Chunk() {
     delete[] reinterpret_cast<Pixel*>(columns);
 }
@@ -91,4 +94,8 @@ xaero::Region::TileChunk::Chunk::Pixel * xaero::Region::operator[](std::uint16_t
     if (!chunk.isPopulated()) return nullptr;
 
     return &chunk[relX & 15][relZ & 15];
+}
+
+xaero::Region::Region() : majorVersion(6), minorVersion(8) {
+
 }

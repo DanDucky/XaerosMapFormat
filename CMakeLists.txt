@@ -11,6 +11,7 @@ add_library(XaerosMapFormat
         src/types/RegionImage.cpp
         src/types/Region.cpp
         src/types/LookupTypes.cpp
+        src/types/BlockState.cpp
 )
 
 file (DOWNLOAD

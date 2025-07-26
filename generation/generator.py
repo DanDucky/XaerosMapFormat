@@ -355,7 +355,7 @@ def generate_lookups(file_names : Path, blocks : dict, colors : dict) -> dict:
 
 namespace {NAMESPACE} {{
 const {NAMESPACE}::{STATE_ID_CHUNK_TYPE} {STATE_ID_NAME}_{i} = {{
-{",\n".join([f"{{{{\"{info[0]}\",nbt::tag_compound{{{",".join([f"{{\"{key}\",\"{value}\"}}" for key, value in info[1].items()])}}},{{{info[2][0]},{info[2][1]},{info[2][2]},{info[2][3] if len(info[2]) > 3 else 255}}}}}}}" if len(info) > 0 else "{}" for id, info in chunk])}
+{",\n".join([f"{{{{BlockState{{\"{info[0]}\",nbt::tag_compound{{{",".join([f"{{\"{key}\",\"{value}\"}}" for key, value in info[1].items()])}}}}},{{{info[2][0]},{info[2][1]},{info[2][2]},{info[2][3] if len(info[2]) > 3 else 255}}}}}}}" if len(info) > 0 else "{}" for id, info in chunk])}
 }};
 }}
 

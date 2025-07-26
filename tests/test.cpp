@@ -7,6 +7,8 @@
 #include <xaero/util/IndexableView.hpp>
 #include <xaero/Map.hpp>
 
+#include "../src/util/ByteOutputStream.hpp"
+
 #ifdef XAERO_DEFAULT_LOOKUPS
 #   include <xaero/lookups/BlockLookups.hpp>
 #endif
@@ -16,7 +18,7 @@ TEST_CASE("BlockLookups", "[BlockLookups]") {
     const xaero::IndexableView<const xaero::StateIDLookupElement&> wrapper = {xaero::defaultStateIDLookup};
     for (int i = 0; i < xaero::defaultStateIDLookupSize; i++) {
         if (xaero::defaultStateIDLookup[i].has_value()) {
-            REQUIRE(wrapper[i]->name == xaero::defaultStateIDLookup[i]->name);
+            REQUIRE(wrapper[i]->state.name == xaero::defaultStateIDLookup[i]->state.name);
         }
     }
 }

@@ -6,6 +6,7 @@
 #include <vector>
 #include <memory>
 
+#include "BlockState.hpp"
 #include "RegionImage.hpp"
 
 namespace xaero {
@@ -13,20 +14,20 @@ namespace xaero {
         struct TileChunk {
             struct Chunk {
                 struct Pixel {
-                    using BlockState = std::pair<std::string, nbt::tag_compound>;
-
                     std::uint8_t light;
                     std::optional<std::uint8_t> slope;
-                    int16_t height;
-                    int16_t topHeight;
+                    std::int16_t height;
+                    std::optional<std::int8_t> topHeight;
 
-                    std::variant<std::shared_ptr<std::string>, std::string, std::string_view> biome; // biome ids are so unsupported that I can't even add them here :(
-                    std::variant<int32_t /* state id */, BlockState, std::shared_ptr<BlockState>, const BlockState* /* external state management */> state; // keeping support for ids because I hate nbt
+                    // the rationale for this being optional instead of having a std::monostate is that xaero "officially" might not have a biome, but it ALWAYS has a state
+
+                    std::optional<std::variant<std::shared_ptr<std::string>, std::string, std::string_view>> biome; // biome ids are so unsupported that I can't even add them here :(
+                    std::variant<std::monostate, std::int32_t /* state id */, BlockState, std::shared_ptr<BlockState>, BlockState* /* external state management */> state; // keeping support for ids because I hate nbt
 
                     struct Overlay {
                         std::uint8_t light;
-                        std::int32_t opacity;
-                        std::variant<int32_t /* state id */, BlockState, std::shared_ptr<BlockState>, const BlockState* /* external state management */> state; // keeping support for ids because I hate nbt
+                        std::optional<std::int32_t> opacity;
+                        std::variant<std::monostate, std::int32_t /* state id */, BlockState, std::shared_ptr<BlockState>, BlockState* /* external state management */> state; // keeping support for ids because I hate nbt
                     };
                     std::vector<Overlay> overlays;
 
@@ -36,7 +37,9 @@ namespace xaero {
 
                 std::int32_t caveStart=0;
                 std::int8_t caveDepth=0;
-                std::int8_t chunkInterpretationVersion=1;
+
+                // will set a default value
+                std::int8_t chunkInterpretationVersion;
 
                 [[nodiscard]] Pixel* operator[] (int x);
                 [[nodiscard]] const Pixel* operator[] (int x) const;
@@ -44,6 +47,8 @@ namespace xaero {
                 [[nodiscard]] explicit operator bool() const;
 
                 void allocateColumns();
+
+                Chunk();
 
                 ~Chunk();
             };
@@ -67,5 +72,12 @@ namespace xaero {
         [[nodiscard]] TileChunk::Chunk::Pixel* operator[](std::uint16_t relX, std::uint16_t relZ);
 
         [[nodiscard]] bool hasPixel(std::uint16_t relX, std::uint16_t relZ) const;
+
+        Region();
+
+        // will not obey if saving region, will upgrade data to latest xaero
+        std::uint16_t majorVersion;
+        // will not obey if saving region, will upgrade data to latest xaero
+        std::uint16_t minorVersion;
     };
 }
