@@ -2,7 +2,6 @@
 
 #include <string_view>
 #include <unordered_map>
-#include <flat_map>
 #include <optional>
 #include <cstddef>
 #include <nbt_tags.h>
@@ -39,7 +38,7 @@ namespace xaero {
         [[nodiscard]] bool operator()(const std::string_view& a, const std::string_view& b) const noexcept;
     };
 
-    using StateLookup = std::unordered_map<std::string_view, std::flat_map<nbt::tag_compound, RegionImage::Pixel, CompoundCompare>, NameHash, NameEquals>;
+    using StateLookup = std::unordered_map<std::string_view, std::map<nbt::tag_compound, RegionImage::Pixel, CompoundCompare>, NameHash, NameEquals>;
     using StateIDLookupElement = std::optional<StateIDPack>;
 
 #ifdef XAERO_DEFAULT_LOOKUPS

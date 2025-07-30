@@ -4,7 +4,6 @@
 #include <functional>
 #include <memory>
 #include <algorithm>
-#include <flat_map>
 #include <spanstream>
 #include <format>
 
@@ -36,7 +35,7 @@ namespace xaero {
     }; // the names here are GUESSES and probably incorrect, thank Xaero for using magic numbers everywhere and then not providing source code with comments
 
     static std::string_view fixBiome (const std::string_view& biome) {
-        static const std::flat_map<std::string_view, std::string_view, NameCompare> lookup {
+        static const std::map<std::string_view, std::string_view, NameCompare> lookup {
             {"badlands_plateau", "badlands"},
             {"bamboo_jungle_hills", "bamboo_jungle"},
             {"birch_forest_hills", "birch_forest"},
@@ -101,7 +100,7 @@ namespace xaero {
     static void convertNBT(std::unique_ptr<nbt::tag_compound>& nbt, const std::int16_t majorVersion) {
         if (majorVersion == 1) {
             const auto name = nbt->at("Name").as<nbt::tag_string>().get();
-            static const std::flat_map<std::string_view, std::string_view> convert {
+            static const std::map<std::string_view, std::string_view> convert {
                 {"minecraft:stone_slab", "minecraft:smooth_stone_slab"},
                 {"minecraft:sign", "minecraft:oak_sign"},
                 {"minecraft:wall_sign", "minecraft:oak_wall_sign"}};
@@ -118,7 +117,7 @@ namespace xaero {
                 properties.put("east", properties.at("east").as<nbt::tag_string>().get() == "true" ? "low" : "none");
                 properties.put("west", properties.at("west").as<nbt::tag_string>().get() == "true" ? "low" : "none");
             };
-            static const std::flat_map<std::string_view, std::function<void(std::unique_ptr<nbt::tag_compound>&)>> convert {
+            static const std::map<std::string_view, std::function<void(std::unique_ptr<nbt::tag_compound>&)>> convert {
                 {"minecraft:jigsaw", [](std::unique_ptr<nbt::tag_compound>& tag) {
                     auto& properties = tag->at("Properties").as<nbt::tag_compound>();
                     const auto facing = properties.at("facing").as<nbt::tag_string>().get();
@@ -176,7 +175,7 @@ namespace xaero {
 
         if (majorVersion < 5) {
             const auto name = nbt->at("Name").as<nbt::tag_string>().get();
-            static const std::flat_map<std::string_view, std::function<void(std::unique_ptr<nbt::tag_compound>&)>> convert {
+            static const std::map<std::string_view, std::function<void(std::unique_ptr<nbt::tag_compound>&)>> convert {
                 {"minecraft:cauldron",  [](std::unique_ptr<nbt::tag_compound>& tag) {
                     auto& properties = tag->at("Properties").as<nbt::tag_compound>();
                     if (properties.size() == 0) return;
