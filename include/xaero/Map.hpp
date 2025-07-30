@@ -17,7 +17,15 @@ namespace xaero {
          * @return parsed region
          */
         static Region parseRegion(const std::filesystem::path& file);
-        static Region parseRegion(const std::span<std::uint8_t>& data);
+        /**
+         * @param data unzipped data at the entry "region.xaero" in a xaero region file
+         * @return parsed region
+         */
+        static Region parseRegion(const std::span<char>& data);
+        /**
+         * @param data data stream to the entry "region.xaero" in a xaero region file
+         * @return parsed region
+         */
         static Region parseRegion(std::istream& data);
 
         static std::string serializeRegion(const Region& region, const LookupPack& lookups
@@ -34,9 +42,25 @@ namespace xaero {
 
         static void writeRegion(const std::span<std::uint8_t>& serialized, const std::filesystem::path& path);
 
+        /**
+         * @param region region to render
+         * @return rendered region
+         */
         static RegionImage generateImage(const Region& region);
+        /**
+         * @param file path to xaero zip file, please do not unzip!
+         * @return rendered region
+         */
         static RegionImage generateImage(const std::filesystem::path& file);
-        static RegionImage generateImage(const std::span<std::uint8_t>& data);
+        /**
+         * @param data unzipped data at the entry "region.xaero" in a xaero region file
+         * @return rendered region
+         */
+        static RegionImage generateImage(const std::span<char>& data);
+        /**
+         * @param data data stream to the entry "region.xaero" in a xaero region file
+         * @return rendered region
+         */
         static RegionImage generateImage(std::istream& data);
 
         enum class MergeType : std::uint8_t {

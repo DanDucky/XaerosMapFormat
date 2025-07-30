@@ -17,7 +17,7 @@ namespace xaero {
                     std::uint8_t light;
                     std::optional<std::uint8_t> slope;
                     std::int16_t height;
-                    std::optional<std::int8_t> topHeight;
+                    std::optional<std::uint8_t> topHeight;
 
                     // the rationale for this being optional instead of having a std::monostate is that xaero "officially" might not have a biome, but it ALWAYS has a state
 

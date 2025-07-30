@@ -71,11 +71,11 @@ const xaero::Region::TileChunk::Chunk::Pixel* xaero::Region::operator[
 
     // can be shifted instead of using modulo, should be faster :smirkcat:
 
-    const auto tileChunk = tileChunks[relX >> 7][relZ >> 7];
+    const auto& tileChunk = tileChunks[relX >> 7][relZ >> 7];
 
     if (!tileChunk.isPopulated()) return nullptr;
 
-    const auto chunk = tileChunk[relX >> 4 & 3][relZ >> 4 & 3];
+    const auto& chunk = tileChunk[relX >> 4 & 3][relZ >> 4 & 3];
 
     if (!chunk.isPopulated()) return nullptr;
 
@@ -85,11 +85,11 @@ const xaero::Region::TileChunk::Chunk::Pixel* xaero::Region::operator[
 xaero::Region::TileChunk::Chunk::Pixel * xaero::Region::operator[](std::uint16_t relX, std::uint16_t relZ) {
     if (relX >= 521 || relZ >= 512) return nullptr;
 
-    auto tileChunk = tileChunks[relX >> 7][relZ >> 7];
+    auto& tileChunk = tileChunks[relX >> 7][relZ >> 7];
 
     if (!tileChunk.isPopulated()) return nullptr;
 
-    auto chunk = tileChunk[relX >> 4 & 3][relZ >> 4 & 3];
+    auto& chunk = tileChunk[relX >> 4 & 3][relZ >> 4 & 3];
 
     if (!chunk.isPopulated()) return nullptr;
 

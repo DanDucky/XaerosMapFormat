@@ -1,5 +1,7 @@
 #include "ByteOutputStream.hpp"
 
+#include <string>
+
 #include "ztd/text/transcode.hpp"
 
 ByteOutputStream::ByteOutputStream(std::ostream &stream) : stream(stream) {
@@ -18,5 +20,5 @@ void ByteOutputStream::writeMUTF(const std::string &string) {
 
     write<std::uint16_t>(string.length());
 
-    stream.write(reinterpret_cast<const char *>(output.begin().base()), string.length());
+    stream.write(reinterpret_cast<const char *>(&*output.begin()), string.length());
 }

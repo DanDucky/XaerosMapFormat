@@ -53,10 +53,12 @@ public:
      */
     template<typename V>
     std::size_t writeNext(const V value, std::size_t size=sizeof(V) * 8) {
-        size = std::clamp<std::size_t>(size, 0, sizeof(V) * 8 - position);
+        size = std::clamp<std::size_t>(size, 0, sizeof(T) * 8 - position);
         if (size == 0) return 0;
 
-        data |= (static_cast<std::size_t>(value) << (sizeof(value) * 8 - size)) >> (sizeof(data) - size + position);
+        data |= (static_cast<T>(value) << (sizeof(T) * 8 - size)) >> (sizeof(T) * 8 - size - position);
+
+        position += size;
 
         return size;
     }

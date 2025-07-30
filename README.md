@@ -45,4 +45,3 @@ tldr: Xaero's Map format version `6.8`
 
 This is a little bit difficult because the versioning is dependent on an internal Xaero's Map format version number. 
 Currently, this supports reading from all versions up to 6.8 and writes version 6.8 files.
-This is the most up-to-date version, and is present in Xaero's World Map 1.39.13, but it is subject to random change in future versions.

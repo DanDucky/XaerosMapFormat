@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <algorithm>
+#include <format>
 
 #include "../include/xaero/types/RegionImage.hpp"
 #include "util/ByteInputStream.hpp"
@@ -20,16 +21,17 @@
 #include <mz_zip_rw.h>
 #include <spanstream>
 
+#include "mz_strm_mem.h"
 #include "util/ByteOutputStream.hpp"
 #include "util/OptionalOwnerPtr.hpp"
 
 namespace xaero {
 
     enum class ColorType : std::uint8_t { // legacy color type system, not supported by Xaero and not rendered by this
-        NONE,
-        DEFAULT,
-        CUSTOM_COLOR,
-        CUSTOM_BIOME
+        NONE = 0,
+        DEFAULT = 1,
+        CUSTOM_COLOR = 2,
+        CUSTOM_BIOME = 3
     }; // the names here are GUESSES and probably incorrect, thank Xaero for using magic numbers everywhere and then not providing source code with comments
 
     static std::string_view fixBiome (const std::string_view& biome) {
@@ -264,6 +266,7 @@ namespace xaero {
                             } else {
                                 parameters.skipBits(1);
                             }
+                            parameters.skipBits(1); // for some reason this is ignored????
                             const bool heightInParameters = !parameters.getNextBits(1);
                             parameters.skipToNextByte();
                             pixel.light = parameters.getNextBits(4);
@@ -537,14 +540,14 @@ namespace xaero {
                                     }
                                 }
 
-                                parameters.writeNext(isGrass, 1);
+                                parameters.writeNext(!isGrass, 1);
                                 parameters.writeNext(pixel.hasOverlays(), 1);
                                 parameters.writeNext(ColorType::NONE, 2);
-                                parameters.skip(1); // slope is no longer supported
-                                parameters.writeNext(true, 1); // write height separately
+                                parameters.skip(2); // slope is no longer supported and next isn't used
+                                parameters.writeNext(false, 1);
                                 parameters.skipToNextByte();
                                 parameters.writeNext(pixel.light, 4);
-                                parameters.skip(8); // height will be inserted later
+                                parameters.writeNext(pixel.height, 8);
                                 parameters.writeNext(pixel.biome.has_value(), 1);
 
                                 bool stateInPalette = isGrass;
@@ -588,8 +591,9 @@ namespace xaero {
                                 }
 
                                 parameters.writeNext(!biomeInPalette, 1);
-                                parameters.writeNext(false, 1); // biome is id
+                                parameters.writeNext(false, 1); // biome is not id
                                 parameters.writeNext(pixel.topHeight.has_value(), 1);
+                                parameters.writeNext(pixel.height >> 8, 4);
 
                                 stream.write(parameters); // pixel parameters
 
@@ -599,6 +603,9 @@ namespace xaero {
                                     } else {
                                         nbt::io::stream_writer nbtWriter(stream.getStream());
 
+                                        // this is extremely busted for some reason... whatever probably using this lib wrong
+                                        nbtWriter.write_type(nbt::tag_type::Compound);
+                                        nbtWriter.write_payload(nbt::tag_string(""));
                                         nbtWriter.write_payload(state.pointer->getNBT());
 
                                         statePalette.push_back(std::move(state));
@@ -606,7 +613,7 @@ namespace xaero {
                                 }
 
                                 if (pixel.topHeight.has_value()) {
-                                    stream.write<std::int8_t>(pixel.topHeight.value());
+                                    stream.write<std::uint8_t>(pixel.topHeight.value());
                                 }
 
                                 if (pixel.hasOverlays()) {
@@ -625,12 +632,12 @@ namespace xaero {
                                                 isWater = true;
                                             } else {
                                                 if (stateID >= lookups.stateIDLookupSize) {
-                                                    state = OptionalOwnerPtr<const BlockState>(&lookups.stateIDLookup[0].value().state, false);
+                                                    state = OptionalOwnerPtr(&lookups.stateIDLookup[0].value().state, false);
                                                 } else {
                                                     if (const auto statePack = lookups.stateIDLookup[stateID];
                                                         !statePack) {
 
-                                                        state = OptionalOwnerPtr<const BlockState>(&lookups.stateIDLookup[0].value().state, false);
+                                                        state = OptionalOwnerPtr(&lookups.stateIDLookup[0].value().state, false);
                                                     } else {
                                                         state = OptionalOwnerPtr(&statePack.value().state, false);
                                                     }
@@ -708,12 +715,59 @@ namespace xaero {
     }
 
     std::string Map::serializeRegion(const Region &region, const LookupPack &lookups) {
-        std::string output;
-        auto stringStream = std::ostringstream(output);
+        auto stringStream = std::ostringstream();
         ByteOutputStream stream(stringStream);
-        serializeRegionImpl(region, stream, [&output](const std::size_t size) {output.reserve(size);}, lookups);
-        return output;
+        serializeRegionImpl(region, stream, [](const std::size_t size) {}, lookups);
+        return stringStream.str();
     }
+    //
+    // inline std::int32_t packRegionImpl(void* const stream, const std::span<std::uint8_t> &serialized) {
+    //     std::int32_t error = MZ_OK;
+    //     void* zipHandle = nullptr;
+    //     mz_zip_file fileInfo = {};
+    //
+    //     error = mz_stream_mem_open(stream, nullptr, MZ_OPEN_MODE_CREATE);
+    //     if (error != MZ_OK) goto cleanup;
+    //
+    //     zipHandle = mz_zip_create();
+    //     if (!zipHandle) goto cleanup;
+    //
+    //     error = mz_zip_open(zipHandle, stream, MZ_OPEN_MODE_WRITE);
+    //     if (error != MZ_OK) goto cleanup;
+    //
+    //     fileInfo.filename = "region.xaero";
+    //     fileInfo.uncompressed_size = serialized.size();
+    //     fileInfo.compression_method = MZ_COMPRESS_METHOD_DEFLATE;
+    //
+    //     error = mz_zip_entry_write_open(zipHandle, &fileInfo, )
+    //
+    //     cleanup:
+    //
+    //     return error;
+    // }
+    //
+    // std::string Map::packRegion(const std::span<std::uint8_t> &serialized) {
+    //     std::int32_t error = MZ_OK;
+    //     void* streamHandle = nullptr;
+    //
+    //     // error handling here is really lax because we're not actually doing file io so there really shouldn't be errors unless something goes real crazy
+    //
+    //     streamHandle = mz_stream_mem_create();
+    //     if (!streamHandle) {
+    //         error = MZ_STREAM_ERROR;
+    //     }
+    //
+    //     error = packRegionImpl(streamHandle, serialized);
+    //
+    //
+    //     cleanup :
+    //     if (streamHandle) {
+    //         mz_stream_mem_close(streamHandle);
+    //         mz_stream_mem_delete(&streamHandle);
+    //     }
+    //
+    //     if (error != MZ_OK) return "";
+    // }
 
     Region Map::parseRegion(const std::filesystem::path &file) {
         auto zipReader = mz_zip_reader_create();
@@ -751,6 +805,11 @@ namespace xaero {
         }
 
         auto stream = std::istringstream(data);
+        return parseRegion(stream);
+    }
+
+    Region Map::parseRegion(const std::span<char> &data) {
+        std::ispanstream stream(data);
         return parseRegion(stream);
     }
 

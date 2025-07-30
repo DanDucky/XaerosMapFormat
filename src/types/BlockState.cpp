@@ -8,7 +8,7 @@ std::string_view BlockState::strippedName() const {
     const auto found = name.find(':');
     if (found == std::string::npos) return name;
 
-    return std::string_view(name.begin() + found + 1, name.end());
+    return {name.begin() + found + 1, name.end()};
 }
 
 BlockState::BlockState(nbt::tag_compound nbt) :
@@ -20,9 +20,14 @@ BlockState::BlockState(std::string name, nbt::tag_compound properties) : name(st
 }
 
 nbt::tag_compound BlockState::getNBT() const {
+    if (properties.size() > 0) {
+        return {
+            std::pair{"Name", std::format("minecraft:{}", strippedName())},
+            std::pair{"Properties", properties}
+        };
+    }
     return {
         std::pair{"Name", std::format("minecraft:{}", strippedName())},
-        std::pair{"Properties", properties}
     };
 }
 
