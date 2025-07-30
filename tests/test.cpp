@@ -1,13 +1,13 @@
 #include <fstream>
+#include <iostream>
 
 #include "../src/util/ByteInputStream.hpp"
-#include "catch2/catch_test_macros.hpp"
-#include <iostream>
+#include "../src/util/ByteOutputStream.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 
 #include <xaero/util/IndexableView.hpp>
 #include <xaero/Map.hpp>
-
-#include "../src/util/ByteOutputStream.hpp"
 
 #ifdef XAERO_DEFAULT_LOOKUPS
 #   include <xaero/lookups/BlockLookups.hpp>

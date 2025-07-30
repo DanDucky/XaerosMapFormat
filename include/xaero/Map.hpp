@@ -28,19 +28,19 @@ namespace xaero {
          */
         static Region parseRegion(std::istream& data);
 
-        static std::string serializeRegion(const Region& region, const LookupPack& lookups
+        static std::string serializeRegion(const Region& region, const LookupPack* lookups
 #ifdef XAERO_DEFAULT_LOOKUPS
-        ={defaultStateLookup, defaultStateIDLookup, defaultStateIDLookupSize}
+        = nullptr
 #endif
         );
-        static std::string packRegion(const std::span<std::uint8_t>& serialized);
-        static void writeRegion(const Region& region, const std::filesystem::path& path, const LookupPack& lookups
+        static std::string packRegion(const std::string_view &serialized);
+        static bool writeRegion(const Region& region, const std::filesystem::path& path, const LookupPack* lookups
 #ifdef XAERO_DEFAULT_LOOKUPS
-        ={defaultStateLookup, defaultStateIDLookup, defaultStateIDLookupSize}
+        = nullptr
 #endif
         );
 
-        static void writeRegion(const std::span<std::uint8_t>& serialized, const std::filesystem::path& path);
+        static bool writeRegion(const std::string_view &serialized, const std::filesystem::path &path);
 
         /**
          * @param region region to render
@@ -56,7 +56,7 @@ namespace xaero {
          * @param data unzipped data at the entry "region.xaero" in a xaero region file
          * @return rendered region
          */
-        static RegionImage generateImage(const std::span<char>& data);
+        static RegionImage generateImage(const std::string_view& data);
         /**
          * @param data data stream to the entry "region.xaero" in a xaero region file
          * @return rendered region
@@ -70,7 +70,7 @@ namespace xaero {
         };
 
         void addRegion(const std::filesystem::path& file, MergeType merge=MergeType::OVERRIDE);
-        void addRegion(const std::span<std::uint8_t>& data, MergeType merge=MergeType::OVERRIDE);
+        void addRegion(const std::string_view& data, MergeType merge=MergeType::OVERRIDE);
         void addRegion(std::istream& data, MergeType merge=MergeType::OVERRIDE);
         void addRegion(const Region region, MergeType merge=MergeType::OVERRIDE);
 

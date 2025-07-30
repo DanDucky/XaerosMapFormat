@@ -1,7 +1,16 @@
 #include <algorithm>
 #include <xaero/types/LookupTypes.hpp>
+#include <xaero/lookups/BlockLookups.hpp>
 #include <nbt_tags.h>
 #include <ranges>
+
+#ifdef XAERO_DEFAULT_LOOKUPS
+[[maybe_unused]] const xaero::LookupPack xaero::defaultLookupPack = {
+    xaero::defaultStateLookup,
+    xaero::defaultStateIDLookup,
+    xaero::defaultStateIDLookupSize
+};
+#endif
 
 bool xaero::ValueCompare::operator()(const nbt::value &lhs, const nbt::value &rhs) const noexcept {
     if (lhs.get_ptr() != nullptr && rhs.get_ptr() != nullptr) { // this is about to be some serious cancer
@@ -82,4 +91,11 @@ bool xaero::NameEquals::operator()(const std::string_view &a, const std::string_
     const auto bSplit = b.find_first_of(':');
 
     return (aSplit != std::string_view::npos ? a.substr(aSplit + 1) : a) == (bSplit != std::string_view::npos ? b.substr(bSplit + 1) : b);
+}
+
+bool xaero::NameCompare::operator()(const std::string_view &a, const std::string_view &b) const noexcept {
+    const auto aSplit = a.find_first_of(':');
+    const auto bSplit = b.find_first_of(':');
+
+    return (aSplit != std::string_view::npos ? a.substr(aSplit + 1) : a).compare(bSplit != std::string_view::npos ? b.substr(bSplit + 1) : b);
 }

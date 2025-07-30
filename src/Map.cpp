@@ -4,26 +4,27 @@
 #include <functional>
 #include <memory>
 #include <algorithm>
+#include <flat_map>
+#include <spanstream>
 #include <format>
 
-#include "../include/xaero/types/RegionImage.hpp"
-#include "util/ByteInputStream.hpp"
-#include "../include/xaero/types/Region.hpp"
-#include <nbt_tags.h>
-
-#include "../include/xaero/types/LookupTypes.hpp"
+#include "xaero/types/RegionImage.hpp"
+#include "xaero/types/Region.hpp"
+#include "xaero/types/LookupTypes.hpp"
 #include "xaero/util/IndexableView.hpp"
+#include "util/ByteInputStream.hpp"
+#include "util/ByteOutputStream.hpp"
+#include "util/OptionalOwnerPtr.hpp"
+
+#include <nbt_tags.h>
 
 // for some reason when I remove this include I get errors, so keep mz_strm
 #include <mz_strm.h>
 #include <mz.h>
 #include <mz_zip.h>
 #include <mz_zip_rw.h>
-#include <spanstream>
-
-#include "mz_strm_mem.h"
-#include "util/ByteOutputStream.hpp"
-#include "util/OptionalOwnerPtr.hpp"
+#include <mz_strm_mem.h>
+#include <mz_strm_os.h>
 
 namespace xaero {
 
@@ -35,7 +36,7 @@ namespace xaero {
     }; // the names here are GUESSES and probably incorrect, thank Xaero for using magic numbers everywhere and then not providing source code with comments
 
     static std::string_view fixBiome (const std::string_view& biome) {
-        static const std::unordered_map<std::string_view, std::string_view, NameHash, NameEquals> lookup {
+        static const std::flat_map<std::string_view, std::string_view, NameCompare> lookup {
             {"badlands_plateau", "badlands"},
             {"bamboo_jungle_hills", "bamboo_jungle"},
             {"birch_forest_hills", "birch_forest"},
@@ -100,7 +101,7 @@ namespace xaero {
     static void convertNBT(std::unique_ptr<nbt::tag_compound>& nbt, const std::int16_t majorVersion) {
         if (majorVersion == 1) {
             const auto name = nbt->at("Name").as<nbt::tag_string>().get();
-            static const std::map<std::string_view, std::string_view> convert {
+            static const std::flat_map<std::string_view, std::string_view> convert {
                 {"minecraft:stone_slab", "minecraft:smooth_stone_slab"},
                 {"minecraft:sign", "minecraft:oak_sign"},
                 {"minecraft:wall_sign", "minecraft:oak_wall_sign"}};
@@ -117,7 +118,7 @@ namespace xaero {
                 properties.put("east", properties.at("east").as<nbt::tag_string>().get() == "true" ? "low" : "none");
                 properties.put("west", properties.at("west").as<nbt::tag_string>().get() == "true" ? "low" : "none");
             };
-            static const std::map<std::string_view, std::function<void(std::unique_ptr<nbt::tag_compound>&)>> convert {
+            static const std::flat_map<std::string_view, std::function<void(std::unique_ptr<nbt::tag_compound>&)>> convert {
                 {"minecraft:jigsaw", [](std::unique_ptr<nbt::tag_compound>& tag) {
                     auto& properties = tag->at("Properties").as<nbt::tag_compound>();
                     const auto facing = properties.at("facing").as<nbt::tag_string>().get();
@@ -175,7 +176,7 @@ namespace xaero {
 
         if (majorVersion < 5) {
             const auto name = nbt->at("Name").as<nbt::tag_string>().get();
-            static const std::map<std::string_view, std::function<void(std::unique_ptr<nbt::tag_compound>&)>> convert {
+            static const std::flat_map<std::string_view, std::function<void(std::unique_ptr<nbt::tag_compound>&)>> convert {
                 {"minecraft:cauldron",  [](std::unique_ptr<nbt::tag_compound>& tag) {
                     auto& properties = tag->at("Properties").as<nbt::tag_compound>();
                     if (properties.size() == 0) return;
@@ -456,7 +457,7 @@ namespace xaero {
         return region;
     }
 
-    inline void serializeRegionImpl(const Region& region, ByteOutputStream& stream, std::function<void(std::size_t)> reserve, const LookupPack& lookups) {
+    inline void serializeRegionImpl(const Region& region, ByteOutputStream& stream, std::function<void(std::size_t)> reserve, const LookupPack* lookups) {
         reserve(5);
 
         stream.write<std::uint8_t>(255); // has version
@@ -507,20 +508,20 @@ namespace xaero {
                                 OptionalOwnerPtr<const BlockState> state;
 
                                 if (std::holds_alternative<std::monostate>(pixel.state)) {
-                                    state = OptionalOwnerPtr<const BlockState>(&lookups.stateIDLookup[0].value().state, false);
+                                    state = OptionalOwnerPtr<const BlockState>(&lookups->stateIDLookup[0].value().state, false);
                                 } else if (std::holds_alternative<std::int32_t>(pixel.state)) { // get state from id
                                     if (const auto stateID = std::get<std::int32_t>(pixel.state);
                                         stateID == 9 || stateID == 8) {
 
                                         isGrass = true;
                                     } else {
-                                        if (stateID >= lookups.stateIDLookupSize) { // out of bounds...
-                                            state = OptionalOwnerPtr<const BlockState>(&lookups.stateIDLookup[0].value().state, false);
+                                        if (stateID >= lookups->stateIDLookupSize) { // out of bounds...
+                                            state = OptionalOwnerPtr<const BlockState>(&lookups->stateIDLookup[0].value().state, false);
                                         } else {
-                                            if (const auto statePack = lookups.stateIDLookup[stateID];
+                                            if (const auto statePack = lookups->stateIDLookup[stateID];
                                                 !statePack) {
 
-                                                state = OptionalOwnerPtr<const BlockState>(&lookups.stateIDLookup[0].value().state, false);
+                                                state = OptionalOwnerPtr<const BlockState>(&lookups->stateIDLookup[0].value().state, false);
                                             } else {
                                                 state = OptionalOwnerPtr(&statePack.value().state, false);
                                             }
@@ -603,10 +604,7 @@ namespace xaero {
                                     } else {
                                         nbt::io::stream_writer nbtWriter(stream.getStream());
 
-                                        // this is extremely busted for some reason... whatever probably using this lib wrong
-                                        nbtWriter.write_type(nbt::tag_type::Compound);
-                                        nbtWriter.write_payload(nbt::tag_string(""));
-                                        nbtWriter.write_payload(state.pointer->getNBT());
+                                        nbtWriter.write_tag("", state.pointer->getNBT()); // for some reason needs an empty key...
 
                                         statePalette.push_back(std::move(state));
                                     }
@@ -624,20 +622,20 @@ namespace xaero {
 
                                         bool isWater = false;
                                         if (std::holds_alternative<std::monostate>(overlay.state)) {
-                                            state = OptionalOwnerPtr<const BlockState>(&lookups.stateIDLookup[0].value().state, false);
+                                            state = OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false);
                                         } else if (std::holds_alternative<std::int32_t>(overlay.state)) {
                                             if (const auto stateID = std::get<std::int32_t>(overlay.state);
                                                 stateID == 86) {
 
                                                 isWater = true;
                                             } else {
-                                                if (stateID >= lookups.stateIDLookupSize) {
-                                                    state = OptionalOwnerPtr(&lookups.stateIDLookup[0].value().state, false);
+                                                if (stateID >= lookups->stateIDLookupSize) {
+                                                    state = OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false);
                                                 } else {
-                                                    if (const auto statePack = lookups.stateIDLookup[stateID];
+                                                    if (const auto statePack = lookups->stateIDLookup[stateID];
                                                         !statePack) {
 
-                                                        state = OptionalOwnerPtr(&lookups.stateIDLookup[0].value().state, false);
+                                                        state = OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false);
                                                     } else {
                                                         state = OptionalOwnerPtr(&statePack.value().state, false);
                                                     }
@@ -714,60 +712,109 @@ namespace xaero {
         }
     }
 
-    std::string Map::serializeRegion(const Region &region, const LookupPack &lookups) {
+    std::string Map::serializeRegion(const Region &region, const LookupPack *lookups) {
+        if (lookups == nullptr) {
+            if constexpr (XAERO_DEFAULT_LOOKUPS) { // I know we could do this with default parameters but for some reason MSVC shits itself
+                lookups = &defaultLookupPack;
+            } else {
+                return "";
+            }
+        }
         auto stringStream = std::ostringstream();
         ByteOutputStream stream(stringStream);
         serializeRegionImpl(region, stream, [](const std::size_t size) {}, lookups);
         return stringStream.str();
     }
-    //
-    // inline std::int32_t packRegionImpl(void* const stream, const std::span<std::uint8_t> &serialized) {
-    //     std::int32_t error = MZ_OK;
-    //     void* zipHandle = nullptr;
-    //     mz_zip_file fileInfo = {};
-    //
-    //     error = mz_stream_mem_open(stream, nullptr, MZ_OPEN_MODE_CREATE);
-    //     if (error != MZ_OK) goto cleanup;
-    //
-    //     zipHandle = mz_zip_create();
-    //     if (!zipHandle) goto cleanup;
-    //
-    //     error = mz_zip_open(zipHandle, stream, MZ_OPEN_MODE_WRITE);
-    //     if (error != MZ_OK) goto cleanup;
-    //
-    //     fileInfo.filename = "region.xaero";
-    //     fileInfo.uncompressed_size = serialized.size();
-    //     fileInfo.compression_method = MZ_COMPRESS_METHOD_DEFLATE;
-    //
-    //     error = mz_zip_entry_write_open(zipHandle, &fileInfo, )
-    //
-    //     cleanup:
-    //
-    //     return error;
-    // }
-    //
-    // std::string Map::packRegion(const std::span<std::uint8_t> &serialized) {
-    //     std::int32_t error = MZ_OK;
-    //     void* streamHandle = nullptr;
-    //
-    //     // error handling here is really lax because we're not actually doing file io so there really shouldn't be errors unless something goes real crazy
-    //
-    //     streamHandle = mz_stream_mem_create();
-    //     if (!streamHandle) {
-    //         error = MZ_STREAM_ERROR;
-    //     }
-    //
-    //     error = packRegionImpl(streamHandle, serialized);
-    //
-    //
-    //     cleanup :
-    //     if (streamHandle) {
-    //         mz_stream_mem_close(streamHandle);
-    //         mz_stream_mem_delete(&streamHandle);
-    //     }
-    //
-    //     if (error != MZ_OK) return "";
-    // }
+
+    inline std::int32_t packRegionImpl(void* const stream, const std::string_view &serialized) {
+        std::int32_t error = MZ_OK;
+        void* zipHandle = nullptr;
+        mz_zip_file fileInfo = {};
+
+        zipHandle = mz_zip_create();
+        if (!zipHandle) {
+            error = MZ_STREAM_ERROR; // I know this isn't entirely right but whatever
+            goto cleanup;
+        }
+
+        error = mz_zip_open(zipHandle, stream, MZ_OPEN_MODE_WRITE);
+        if (error != MZ_OK) goto cleanup;
+
+        fileInfo.filename = "region.xaero";
+        fileInfo.uncompressed_size = serialized.size();
+        fileInfo.compression_method = MZ_COMPRESS_METHOD_DEFLATE;
+
+        error = mz_zip_entry_write_open(zipHandle, &fileInfo, MZ_COMPRESS_LEVEL_NORMAL, false, nullptr);
+        if (error != MZ_OK) goto cleanup;
+
+        error = mz_zip_entry_write(zipHandle, serialized.data(), serialized.size());
+        if (error != MZ_OK) goto cleanup;
+
+        cleanup:
+        if (zipHandle == nullptr) return error;
+        mz_zip_entry_close(zipHandle);
+        mz_zip_close(zipHandle);
+        mz_zip_delete(&zipHandle);
+        return error;
+    }
+
+    std::string Map::packRegion(const std::string_view &serialized) {
+        std::int32_t error = MZ_OK;
+        std::int32_t size = 0;
+        std::string output;
+        const void* buffer = nullptr;
+        void* streamHandle = nullptr;
+
+        streamHandle = mz_stream_mem_create();
+        if (!streamHandle) {
+            error = MZ_STREAM_ERROR;
+            goto cleanup;
+        }
+
+        error = mz_stream_mem_open(streamHandle, nullptr, MZ_OPEN_MODE_CREATE);
+        if (error != MZ_OK) goto cleanup;
+
+
+        error = packRegionImpl(streamHandle, serialized);
+        if (error != MZ_OK) goto cleanup;
+
+        mz_stream_mem_get_buffer_length(streamHandle, &size);
+        error = mz_stream_mem_get_buffer(streamHandle, &buffer);
+        if (error != MZ_OK) goto cleanup;
+        output.resize(size);
+        std::memcpy(output.data(), buffer, size);
+
+        cleanup :
+        if (streamHandle) {
+            mz_stream_mem_close(streamHandle);
+            mz_stream_mem_delete(&streamHandle);
+        }
+
+        if (error != MZ_OK) return "";
+
+        return output;
+    }
+
+    bool Map::writeRegion(const std::string_view &serialized, const std::filesystem::path &path) {
+        std::int32_t error = MZ_OK;
+        void* streamHandle = nullptr;
+
+        streamHandle = mz_stream_os_create();
+        if (!streamHandle) goto cleanup;
+
+        error = mz_stream_os_open(streamHandle, path.c_str(), MZ_OPEN_MODE_CREATE | MZ_OPEN_MODE_WRITE | MZ_OPEN_MODE_EXISTING);
+        if (error != MZ_OK) goto cleanup;
+
+        error = packRegionImpl(streamHandle, serialized);
+
+        cleanup:
+        if (streamHandle) {
+            mz_stream_os_close(streamHandle);
+            mz_stream_os_delete(&streamHandle);
+        }
+
+        return error == MZ_OK;
+    }
 
     Region Map::parseRegion(const std::filesystem::path &file) {
         auto zipReader = mz_zip_reader_create();

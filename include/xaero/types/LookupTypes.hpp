@@ -2,7 +2,7 @@
 
 #include <string_view>
 #include <unordered_map>
-#include <map>
+#include <flat_map>
 #include <optional>
 #include <cstddef>
 #include <nbt_tags.h>
@@ -35,28 +35,33 @@ namespace xaero {
         [[nodiscard]] bool operator()(const std::string_view& a, const std::string_view& b) const noexcept;
     };
 
+    struct NameCompare {
+        [[nodiscard]] bool operator()(const std::string_view& a, const std::string_view& b) const noexcept;
+    };
+
+    using StateLookup = std::unordered_map<std::string_view, std::flat_map<nbt::tag_compound, RegionImage::Pixel, CompoundCompare>, NameHash, NameEquals>;
+    using StateIDLookupElement = std::optional<StateIDPack>;
+
 #ifdef XAERO_DEFAULT_LOOKUPS
 
     struct DefaultStateIDLookup {
-        const std::optional<const StateIDPack>& operator[](std::size_t index) const;
+        const StateIDLookupElement& operator[](std::size_t index) const;
     };
-
-#endif
-
-    using StateLookup = std::unordered_map<const std::string_view, const std::map<const nbt::tag_compound, const RegionImage::Pixel, CompoundCompare>, NameHash, NameEquals>;
-    using StateIDLookupElement = std::optional<const StateIDPack>;
-
-#ifdef XAERO_DEFAULT_LOOKUPS
     using StateIDLookupChunk = StateIDLookupElement[];
+
 #endif
 
     /**
-     * @warning these are stored as references! please don't move them while using the parser
+     * @warning these are stored as references! please don't move them while this is in use anywhere
      */
     struct LookupPack {
         const StateLookup& stateLookup;
         const IndexableView<const StateIDLookupElement&>& stateIDLookup;
         const std::size_t stateIDLookupSize;
     };
+
+#ifdef XAERO_DEFAULT_LOOKUPS
+    extern const LookupPack defaultLookupPack;
+#endif
 
 } // xaero
