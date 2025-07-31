@@ -3,12 +3,14 @@
 #include <xaero/lookups/BlockLookups.hpp>
 #include <nbt_tags.h>
 #include <ranges>
+#include "../util/StringUtils.hpp"
 
 #ifdef XAERO_DEFAULT_LOOKUPS
 [[maybe_unused]] const xaero::LookupPack xaero::defaultLookupPack = {
     xaero::defaultStateLookup,
     xaero::defaultStateIDLookup,
-    xaero::defaultStateIDLookupSize
+    xaero::defaultStateIDLookupSize,
+    xaero::defaultBiomeLookup
 };
 #endif
 
@@ -82,20 +84,13 @@ bool xaero::CompoundCompare::operator()(const nbt::tag_compound &lhs, const nbt:
 }
 
 std::size_t xaero::NameHash::operator()(const std::string_view &name) const noexcept {
-    const auto split = name.find_first_of(':');
-    return std::hash<std::string_view>{}(split != std::string_view::npos ? name.substr(split + 1) : name);
+    return std::hash<std::string_view>{}(stripName(name));
 }
 
 bool xaero::NameEquals::operator()(const std::string_view &a, const std::string_view &b) const noexcept {
-    const auto aSplit = a.find_first_of(':');
-    const auto bSplit = b.find_first_of(':');
-
-    return (aSplit != std::string_view::npos ? a.substr(aSplit + 1) : a) == (bSplit != std::string_view::npos ? b.substr(bSplit + 1) : b);
+    return stripName(a) == stripName(b);
 }
 
 bool xaero::NameCompare::operator()(const std::string_view &a, const std::string_view &b) const noexcept {
-    const auto aSplit = a.find_first_of(':');
-    const auto bSplit = b.find_first_of(':');
-
-    return (aSplit != std::string_view::npos ? a.substr(aSplit + 1) : a).compare(bSplit != std::string_view::npos ? b.substr(bSplit + 1) : b);
+    return stripName(a).compare(stripName(b));
 }

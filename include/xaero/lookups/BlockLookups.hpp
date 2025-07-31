@@ -15,6 +15,8 @@ namespace xaero {
     // this project to having support for map data from modpacks
     extern const std::size_t defaultStateIDLookupSize;
     extern const std::size_t defaultStateIDLookupChunkSize;
+
+    extern const BiomeLookup defaultBiomeLookup;
 }
 
 #endif

@@ -24,6 +24,12 @@ namespace xaero {
     struct StateIDPack {
         BlockState state;
         RegionImage::Pixel color;
+        std::int32_t tintIndex = -1; // bs attribute, minecraft's internal files LIE about it constantly, but it's nice to have
+    };
+
+    struct StatePack {
+        RegionImage::Pixel color;
+        std::int32_t tintIndex = -1;
     };
 
     struct NameHash { // removes minecraft:* from name in the hash, because that's nasty and causes unnecessary collisions
@@ -38,8 +44,17 @@ namespace xaero {
         [[nodiscard]] bool operator()(const std::string_view& a, const std::string_view& b) const noexcept;
     };
 
-    using StateLookup = std::unordered_map<std::string_view, std::map<nbt::tag_compound, RegionImage::Pixel, CompoundCompare>, NameHash, NameEquals>;
+    using StateLookup = std::unordered_map<std::string_view, std::map<nbt::tag_compound, StatePack, CompoundCompare>, NameHash, NameEquals>;
     using StateIDLookupElement = std::optional<StateIDPack>;
+
+    struct BiomeColors {
+        RegionImage::Pixel grass;
+        RegionImage::Pixel water;
+        RegionImage::Pixel foliage;
+        RegionImage::Pixel dryFoliage;
+    };
+
+    using BiomeLookup = std::map<std::string_view, BiomeColors, NameCompare>;
 
 #ifdef XAERO_DEFAULT_LOOKUPS
 
@@ -57,6 +72,7 @@ namespace xaero {
         const StateLookup& stateLookup;
         const IndexableView<const StateIDLookupElement&>& stateIDLookup;
         const std::size_t stateIDLookupSize;
+        const BiomeLookup& biomeLookup;
     };
 
 #ifdef XAERO_DEFAULT_LOOKUPS

@@ -32,6 +32,7 @@ namespace xaero {
                     std::vector<Overlay> overlays;
 
                     [[nodiscard]] bool hasOverlays() const;
+                    [[nodiscard]] bool isAir() const;
                 };
                 Pixel (*columns)[16][16] = nullptr;
 

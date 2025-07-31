@@ -44,9 +44,14 @@ namespace xaero {
 
         /**
          * @param region region to render
+         * @param lookups
          * @return rendered region
          */
-        static RegionImage generateImage(const Region& region);
+        static RegionImage generateImage(const Region& region, const LookupPack *lookups
+#ifdef XAERO_DEFAULT_LOOKUPS
+        = nullptr
+#endif
+        );
         /**
          * @param file path to xaero zip file, please do not unzip!
          * @return rendered region

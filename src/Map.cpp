@@ -25,6 +25,8 @@
 #include <mz_strm_mem.h>
 #include <mz_strm_os.h>
 
+#include "util/StringUtils.hpp"
+
 namespace xaero {
 
     enum class ColorType : std::uint8_t { // legacy color type system, not supported by Xaero and not rendered by this
@@ -33,6 +35,47 @@ namespace xaero {
         CUSTOM_COLOR = 2,
         CUSTOM_BIOME = 3
     }; // the names here are GUESSES and probably incorrect, thank Xaero for using magic numbers everywhere and then not providing source code with comments
+
+    std::string_view getBiome(const std::variant<std::shared_ptr<std::string>, std::string, std::string_view>& biome) {
+        std::string_view out;
+        if (std::holds_alternative<std::shared_ptr<std::string>>(biome)) {
+            out = *std::get<std::shared_ptr<std::string>>(biome);
+        } else if (std::holds_alternative<std::string>(biome)) {
+            out = std::get<std::string>(biome);
+        } else if (std::holds_alternative<std::string_view>(biome)) {
+            out = std::get<std::string_view>(biome);
+        }
+
+        return stripName(out);
+    }
+
+    std::pair<OptionalOwnerPtr<const BlockState>, std::optional<RegionImage::Pixel>> getState(const std::variant<std::monostate, std::int32_t, BlockState, std::shared_ptr<BlockState>, BlockState*>& state, const LookupPack* lookups) {
+        if (std::holds_alternative<std::monostate>(state)) {
+            return {OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false), RegionImage::Pixel{0,0,0,0}};
+        } else if (std::holds_alternative<std::int32_t>(state)) {
+            const auto stateID = std::get<std::int32_t>(state);
+            if (stateID >= lookups->stateIDLookupSize) {
+                return {OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false), RegionImage::Pixel{0,0,0,0}};
+            } else {
+                if (const auto statePack = lookups->stateIDLookup[stateID];
+                    !statePack) {
+
+                    return {OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false), RegionImage::Pixel{0,0,0,0}};
+                } else {
+                    return {OptionalOwnerPtr(&statePack.value().state, false), statePack.value().color};
+                }
+            }
+        } else {
+            if (std::holds_alternative<BlockState*>(state)) {
+                return {OptionalOwnerPtr<const BlockState>(std::get<BlockState*>(state), false), {}};
+            } else if (std::holds_alternative<BlockState>(state)) {
+                return {OptionalOwnerPtr<const BlockState>(&std::get<BlockState>(state), false), {}};
+            } else {
+                return {OptionalOwnerPtr<const BlockState>(std::get<std::shared_ptr<BlockState>>(state).get(), false), {}};
+            }
+        }
+
+    }
 
     static std::string_view fixBiome (const std::string_view& biome) {
         static const std::map<std::string_view, std::string_view, NameCompare> lookup {
@@ -456,9 +499,7 @@ namespace xaero {
         return region;
     }
 
-    inline void serializeRegionImpl(const Region& region, ByteOutputStream& stream, std::function<void(std::size_t)> reserve, const LookupPack* lookups) {
-        reserve(5);
-
+    inline void serializeRegionImpl(const Region& region, ByteOutputStream& stream, const LookupPack* lookups) {
         stream.write<std::uint8_t>(255); // has version
 
         stream.write<std::uint16_t>(6); // "major version"
@@ -481,8 +522,6 @@ namespace xaero {
             for (std::uint8_t tileZ = 0; tileZ < 8; tileZ++) {
                 if (!region[tileX][tileZ].isPopulated()) continue;
 
-                reserve(4*4*4 + stream.getStream().tellp());
-
                 BitWriter<std::uint8_t> coordinates;
                 coordinates.writeNext(tileX, 4);
                 coordinates.writeNext(tileZ, 4);
@@ -502,43 +541,8 @@ namespace xaero {
                             for (auto& pixel : pixelRow) {
                                 BitWriter<std::uint32_t> parameters;
 
-                                bool isGrass = false;
-
-                                OptionalOwnerPtr<const BlockState> state;
-
-                                if (std::holds_alternative<std::monostate>(pixel.state)) {
-                                    state = OptionalOwnerPtr<const BlockState>(&lookups->stateIDLookup[0].value().state, false);
-                                } else if (std::holds_alternative<std::int32_t>(pixel.state)) { // get state from id
-                                    if (const auto stateID = std::get<std::int32_t>(pixel.state);
-                                        stateID == 9 || stateID == 8) {
-
-                                        isGrass = true;
-                                    } else {
-                                        if (stateID >= lookups->stateIDLookupSize) { // out of bounds...
-                                            state = OptionalOwnerPtr<const BlockState>(&lookups->stateIDLookup[0].value().state, false);
-                                        } else {
-                                            if (const auto statePack = lookups->stateIDLookup[stateID];
-                                                !statePack) {
-
-                                                state = OptionalOwnerPtr<const BlockState>(&lookups->stateIDLookup[0].value().state, false);
-                                            } else {
-                                                state = OptionalOwnerPtr(&statePack.value().state, false);
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    if (std::holds_alternative<BlockState*>(pixel.state)) {
-                                        state = OptionalOwnerPtr<const BlockState>(std::get<BlockState*>(pixel.state), false);
-                                    } else if (std::holds_alternative<BlockState>(pixel.state)) {
-                                        state = OptionalOwnerPtr<const BlockState>(&std::get<BlockState>(pixel.state), false);
-                                    } else if (std::holds_alternative<std::shared_ptr<BlockState>>(pixel.state)) {
-                                        state = OptionalOwnerPtr<const BlockState>(std::get<std::shared_ptr<BlockState>>(pixel.state).get(), false);
-                                    }
-
-                                    if (state.pointer->name.contains("grass_block")) {
-                                        isGrass = true;
-                                    }
-                                }
+                                auto [state, _] = getState(pixel.state, lookups);
+                                const bool isGrass = state.pointer->isName("grass_block");
 
                                 parameters.writeNext(!isGrass, 1);
                                 parameters.writeNext(pixel.hasOverlays(), 1);
@@ -567,18 +571,7 @@ namespace xaero {
                                 std::size_t biomePaletteIndex = 0;
                                 std::string_view biome;
                                 if (pixel.biome.has_value()) {
-                                    if (std::holds_alternative<std::shared_ptr<std::string>>(pixel.biome.value())) {
-                                        biome = *std::get<std::shared_ptr<std::string>>(pixel.biome.value());
-                                    } else if (std::holds_alternative<std::string>(pixel.biome.value())) {
-                                        biome = std::get<std::string>(pixel.biome.value());
-                                    } else if (std::holds_alternative<std::string_view>(pixel.biome.value())) {
-                                        biome = std::get<std::string_view>(pixel.biome.value());
-                                    }
-
-                                    const auto foundSplit = biome.find(':');
-                                    if (foundSplit != std::string::npos) {
-                                        biome = std::string_view(biome.begin() + foundSplit + 1, biome.end());
-                                    }
+                                    biome = getBiome(pixel.biome.value());
 
                                     if (const auto found = std::ranges::find(biomePalette.begin(), biomePalette.end(), biome);
                                         found == biomePalette.end()) {
@@ -619,40 +612,8 @@ namespace xaero {
                                     for (const auto& overlay : pixel.overlays) {
                                         BitWriter<std::uint32_t> overlayParameters;
 
-                                        bool isWater = false;
-                                        if (std::holds_alternative<std::monostate>(overlay.state)) {
-                                            state = OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false);
-                                        } else if (std::holds_alternative<std::int32_t>(overlay.state)) {
-                                            if (const auto stateID = std::get<std::int32_t>(overlay.state);
-                                                stateID == 86) {
-
-                                                isWater = true;
-                                            } else {
-                                                if (stateID >= lookups->stateIDLookupSize) {
-                                                    state = OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false);
-                                                } else {
-                                                    if (const auto statePack = lookups->stateIDLookup[stateID];
-                                                        !statePack) {
-
-                                                        state = OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false);
-                                                    } else {
-                                                        state = OptionalOwnerPtr(&statePack.value().state, false);
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            if (std::holds_alternative<BlockState*>(overlay.state)) {
-                                                state = OptionalOwnerPtr<const BlockState>(std::get<BlockState*>(overlay.state), false);
-                                            } else if (std::holds_alternative<BlockState>(overlay.state)) {
-                                                state = OptionalOwnerPtr<const BlockState>(&std::get<BlockState>(overlay.state), false);
-                                            } else if (std::holds_alternative<std::shared_ptr<BlockState>>(overlay.state)) {
-                                                state = OptionalOwnerPtr<const BlockState>(std::get<std::shared_ptr<BlockState>>(overlay.state).get(), false);
-                                            }
-
-                                            if (state.pointer->name.ends_with("water") /* todo this is a bad impl, should strip and check the whole string */) {
-                                                isWater = true;
-                                            }
-                                        }
+                                        const auto [overlayState, _] = getState(overlay.state, lookups);
+                                        bool isWater = overlayState.pointer->isName("water");
 
                                         overlayParameters.writeNext(!isWater, 1);
                                         overlayParameters.writeNext(false, 1); // legacy opacity
@@ -711,17 +672,18 @@ namespace xaero {
         }
     }
 
+
     std::string Map::serializeRegion(const Region &region, const LookupPack *lookups) {
         if (lookups == nullptr) {
-            if constexpr (XAERO_DEFAULT_LOOKUPS) { // I know we could do this with default parameters but for some reason MSVC shits itself
+            #ifdef XAERO_DEFAULT_LOOKUPS
                 lookups = &defaultLookupPack;
-            } else {
+            #else
                 return "";
-            }
+            #endif
         }
         auto stringStream = std::ostringstream();
         ByteOutputStream stream(stringStream);
-        serializeRegionImpl(region, stream, [](const std::size_t size) {}, lookups);
+        serializeRegionImpl(region, stream, lookups);
         return stringStream.str();
     }
 
@@ -747,7 +709,6 @@ namespace xaero {
         if (error != MZ_OK) goto cleanup;
 
         error = mz_zip_entry_write(zipHandle, serialized.data(), serialized.size());
-        if (error != MZ_OK) goto cleanup;
 
         cleanup:
         if (zipHandle == nullptr) return error;
@@ -801,7 +762,7 @@ namespace xaero {
         streamHandle = mz_stream_os_create();
         if (!streamHandle) goto cleanup;
 
-        error = mz_stream_os_open(streamHandle, path.c_str(), MZ_OPEN_MODE_CREATE | MZ_OPEN_MODE_WRITE | MZ_OPEN_MODE_EXISTING);
+        error = mz_stream_os_open(streamHandle, reinterpret_cast<const char*>(path.c_str()), MZ_OPEN_MODE_CREATE | MZ_OPEN_MODE_WRITE | MZ_OPEN_MODE_EXISTING);
         if (error != MZ_OK) goto cleanup;
 
         error = packRegionImpl(streamHandle, serialized);
@@ -813,6 +774,76 @@ namespace xaero {
         }
 
         return error == MZ_OK;
+    }
+
+    // separated so it can be used on both the overlays and the pixels
+    RegionImage::Pixel getPixelColor(
+        const std::variant<std::monostate, std::int32_t, BlockState, std::shared_ptr<BlockState>, BlockState*>& stateVariant,
+        const std::string_view& biome,
+        const LookupPack* lookups) {
+
+        RegionImage::Pixel color;
+
+        if (const auto [state, maybeColor] = getState(stateVariant, lookups);
+            !maybeColor) {
+
+            const auto properties = lookups->stateLookup.find(state.pointer->strippedName());
+
+            if (properties != lookups->stateLookup.end()) {
+                color = properties->second.at(state.pointer->properties).color;
+            }
+        } else {
+            color = maybeColor.value();
+        }
+    }
+
+    RegionImage Map::generateImage(const Region &region, const LookupPack *lookups) {
+        RegionImage output;
+
+        if (lookups == nullptr) { // bad!!!
+            return output;
+        }
+        for (std::uint16_t tileChunkX = 0; tileChunkX < 4; tileChunkX++) {
+            for (std::uint16_t tileChunkZ = 0; tileChunkZ < 4; tileChunkZ++) {
+                if (!region[tileChunkX][tileChunkZ].isPopulated()) continue;
+                for (std::uint16_t chunkX = 0; chunkX < 8; chunkX++) {
+                    for (std::uint16_t chunkZ = 0; chunkZ < 8; chunkZ++) {
+                        const auto& chunk = region[tileChunkX][tileChunkZ][chunkX][chunkZ];
+                        if (!chunk.isPopulated()) continue;
+                        for (std::uint8_t pixelX = 0; pixelX < 16; pixelX++) {
+                            for (std::uint8_t pixelZ = 0; pixelZ < 16; pixelZ++) {
+                                const std::uint16_t x = pixelX | chunkX << 4 | tileChunkX << 7;
+                                const std::uint16_t z = pixelZ | chunkZ << 4 | tileChunkZ << 7;
+                                const auto& pixel = chunk[x][z];
+
+                                auto color = chunk.caveStart == -1 ?
+                                RegionImage::Pixel{
+                                    10,
+                                    0,
+                                    23,
+                                    255
+                                } : RegionImage::Pixel{0,0,0,0};
+
+                                if (!pixel.isAir()) { // I could use getState here but it's unnecessary because it's multiple lookups just to get color on ids
+                                    if (const auto [state, maybeColor] = getState(pixel.state, lookups);
+                                        !maybeColor) {
+                                        const auto properties = lookups->stateLookup.find(state.pointer->strippedName());
+                                        if (properties != lookups->stateLookup.end()) {
+                                            color = properties->second.at(state.pointer->properties).color;
+                                        }
+                                    } else {
+                                        color = maybeColor.value();
+                                    }
+                                }
+
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return output;
     }
 
     Region Map::parseRegion(const std::filesystem::path &file) {
@@ -857,20 +888,6 @@ namespace xaero {
     Region Map::parseRegion(const std::span<char> &data) {
         std::ispanstream stream(data);
         return parseRegion(stream);
-    }
-
-    void Map::clearRegions() {
-    }
-
-    void Map::removeRegion(int x, int z) {
-    }
-
-    RegionImage Map::generateImage(int x, int z) const {
-        return {};
-    }
-
-    std::list<RegionImage> Map::generateImages() const {
-        return {};
     }
 
 } // xaero

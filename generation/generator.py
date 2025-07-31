@@ -4,6 +4,10 @@ import json
 from pathlib import Path
 from typing import Optional
 from itertools import combinations
+import numpy as np
+
+# this script is a heaping mess...
+# but I really don't want to refactor it because it's a worthless configure script which doesn't really need to be fast and really doesn't need to be expanded/touched often
 
 NAMESPACE = "xaero"
 STATE_TYPE = "StateLookup"
@@ -12,6 +16,8 @@ STATE_ID_TYPE = "DefaultStateIDLookup"
 STATE_ID_ELEMENT_TYPE = "StateIDLookupElement"
 STATE_ID_CHUNK_TYPE = "StateIDLookupChunk"
 STATE_ID_NAME = "defaultStateIDLookup"
+BIOME_TYPE = "BiomeLookup"
+BIOME_NAME = "defaultBiomeLookup"
 
 MODELS_CACHE = {}
 TEXTURES_CACHE = {}
@@ -34,14 +40,15 @@ def load_model(name : str, models : Path=None) -> dict :
     return MODELS_CACHE[name]
 
 def load_texture(name : str, textures : Path=None) -> Optional[Image.Image] :
-    if name not in TEXTURES_CACHE and textures is not None:
+    path = textures / (name + ".png")
+    if str(path) not in TEXTURES_CACHE and textures is not None:
         try :
-            texture = Image.open(textures / (name + ".png"))
-            TEXTURES_CACHE[name] = texture
+            texture = Image.open(path)
+            TEXTURES_CACHE[str(path)] = texture
         except Exception :
             return None
 
-    return TEXTURES_CACHE[name]
+    return TEXTURES_CACHE[str(path)]
 
 # this is probably the most fragile part of the script, we should 100% just build the model out and render it, but whatev
 def get_top_texture(textures : dict) -> Optional[str] :
@@ -138,6 +145,25 @@ def crop_uv(texture : Image.Image , uv) -> Image.Image :
 
     return texture.crop((x1, y1, x2, y2))
 
+# this script is getting real messy
+def find_first_tag(data, target_key):
+    if isinstance(data, dict):
+        if target_key in data:
+            return data[target_key]
+
+        for value in data.values():
+            result = find_first_tag(value, target_key)
+            if result is not None:
+                return result
+
+    elif isinstance(data, list):
+        for item in data:
+            result = find_first_tag(item, target_key)
+            if result is not None:
+                return result
+
+    return None
+
 def generate_colors(blocks: dict, client : Path) -> dict :
     output : dict = {}
     assets = client / "assets" / "minecraft"
@@ -156,6 +182,10 @@ def generate_colors(blocks: dict, client : Path) -> dict :
             model = load_model(model_name, models)
 
             model = resolve_inheritance(model, models)
+
+            tint_index = find_first_tag(model, "tintindex")
+            if tint_index is None :
+                tint_index = -1
 
             textures = model.get("textures", {}) # should never default (I've checked!!!)
 
@@ -216,7 +246,7 @@ def generate_colors(blocks: dict, client : Path) -> dict :
                     image = load_texture(top_texture, textures_path)
                 else : continue
 
-            total_r = total_g = total_b = 0
+            total_r = total_g = total_b = total_a = 0
             pixel_count = 0
 
             if not image :
@@ -229,14 +259,15 @@ def generate_colors(blocks: dict, client : Path) -> dict :
                     total_r += r
                     total_g += g
                     total_b += b
+                    total_a += a
                     pixel_count += 1
 
             if pixel_count == 0 : #erm whattheflip
                 continue
 
-            color = (total_r // pixel_count, total_g // pixel_count, total_b // pixel_count)
+            color = (total_r // pixel_count, total_g // pixel_count, total_b // pixel_count, total_a // pixel_count)
 
-            output[state["id"]] = color
+            output[state["id"]] = (color, tint_index)
     return output
 
 def generate_header(size : int) -> str :
@@ -327,16 +358,62 @@ def generate_state_lookup(blocks : dict, colors : dict) -> str :
         output[str(name).split(":")[1]] = states
 
     # I hate this so much but I can't bring myself to make some nasty string builder situation and the conversion only works for this "type" so I don't wanna make a generic dict to map function
-    return ",\n".join([f"{{\"{block}\",{{{",\n".join([f"{{nbt::tag_compound{{{",".join([f"{{\"{property}\",\"{property_value}\"}}" for property, property_value in key.items()])}}},{{{value[0]},{value[1]},{value[2]},255}}}}" for key, value in states])}}}}}" for block, states in output.items()])
+    return ",\n".join([f"{{\"{block}\",{{{",\n".join([f"{{nbt::tag_compound{{{",".join([f"{{\"{property}\",\"{property_value}\"}}" for property, property_value in key.items()])}}},{{{{{value[0][0]},{value[0][1]},{value[0][2]},{value[0][3]}}},{value[1]}}}}}" for key, value in states])}}}}}" for block, states in output.items()])
 
-def generate_lookups(file_names : Path, blocks : dict, colors : dict) -> dict:
+def color_from_int (color : int) -> tuple :
+    a = color >> 24
+    r = color >> 16 & 0xFF
+    g = color >> 8 & 0xFF
+    b = color & 0xFF
+    return r, g, b, a
+
+def get_biome_colors(biome : dict, grass : Image.Image, foliage : Image.Image, dry_foliage : Image.Image) -> tuple :
+    effects = biome["effects"]
+    water_color = color_from_int(effects["water_color"])
+
+    temperature = (np.clip(biome["temperature"], 0.0, 1.0))
+    humidity = (1.0 - (np.clip(biome["downfall"], 0.0, 1.0)) * temperature) * 255
+    temperature = (1.0 - temperature) * 255
+
+    if "grass_color" in effects :
+        grass_color = color_from_int(effects["grass_color"])
+    else:
+        grass_color = grass.getpixel((temperature, humidity))
+    if "foliage_color" in effects :
+        foliage_color = color_from_int(effects["foliage_color"])
+    else:
+        foliage_color = foliage.getpixel((temperature, humidity))
+    if "dry_foliage_color" in effects :
+        dry_foliage_color = color_from_int(effects["dry_foliage_color"])
+    else:
+        dry_foliage_color = dry_foliage.getpixel((temperature, humidity))
+
+    return grass_color, water_color, foliage_color, dry_foliage_color
+
+def generate_biome_colors(client : Path) -> str :
+    biome_dir = client / "data" / "minecraft" / "worldgen" / "biome"
+    biome_files = [file for file in biome_dir.glob("**/*") if file.is_file()]
+
+    biomes = []
+
+    colormaps = client / "assets" / "minecraft" / "textures" / "colormap"
+
+    for biome_file in biome_files :
+        with open(biome_file, "r") as file:
+            data = json.load(file)
+
+        biomes.append((biome_file.name.split(".")[0], get_biome_colors(data, load_texture("grass", colormaps).convert("RGB"), load_texture("foliage", colormaps).convert("RGB"), load_texture("dry_foliage", colormaps).convert("RGB"))))
+
+    return ",\n".join([f"{{\"{biome}\",{NAMESPACE}::BiomeColors{{{",".join([f"{{{color[0]},{color[1]},{color[2]},{color[3] if len(color) > 3 else 255}}}" for color in colors])}}}}}" for biome, colors in biomes])
+
+def generate_lookups(file_names : Path, blocks : dict, colors : dict, biomes : str) -> dict:
     output = []
     for name, data in blocks.items() :
         for state in data["states"] :
             if state["id"] not in colors :
-                output.append((state["id"], (name.split(":")[-1], {}, (0, 0, 0, 0))))
+                output.append((state["id"], (name.split(":")[-1], {}, (0, 0, 0, 0), -1)))
                 continue
-            output.append((state["id"], (name.split(":")[-1], state["properties"] if "properties" in state else {}, colors[state["id"]] if state["id"] in colors else (0, 0, 0))))
+            output.append((state["id"], (name.split(":")[-1], state["properties"] if "properties" in state else {}, colors[state["id"]][0] if state["id"] in colors else (0, 0, 0, 0), colors[state["id"]][1] if state["id"] in colors else -1)))
 
     output = sorted(output, key=lambda v: v[0])
     for i in range(output[-1][0] + 1) :
@@ -355,7 +432,7 @@ def generate_lookups(file_names : Path, blocks : dict, colors : dict) -> dict:
 
 namespace {NAMESPACE} {{
 const {NAMESPACE}::{STATE_ID_CHUNK_TYPE} {STATE_ID_NAME}_{i} = {{
-{",\n".join([f"{{{{BlockState{{\"{info[0]}\",nbt::tag_compound{{{",".join([f"{{\"{key}\",\"{value}\"}}" for key, value in info[1].items()])}}}}},{{{info[2][0]},{info[2][1]},{info[2][2]},{info[2][3] if len(info[2]) > 3 else 255}}}}}}}" if len(info) > 0 else "{}" for id, info in chunk])}
+{",\n".join([f"{{{{BlockState{{\"{info[0]}\",nbt::tag_compound{{{",".join([f"{{\"{key}\",\"{value}\"}}" for key, value in info[1].items()])}}}}},{{{info[2][0]},{info[2][1]},{info[2][2]},{info[2][3] if len(info[2]) > 3 else 255}}},{info[3]}}}}}" if len(info) > 0 else "{}" for id, info in chunk])}
 }};
 }}
 
@@ -383,6 +460,10 @@ const {NAMESPACE}::{STATE_ID_ELEMENT_TYPE} & {NAMESPACE}::{STATE_ID_TYPE}::opera
 
     return chunks[index >> {chunk_size}][index & {pow(2, chunk_size) - 1}];
 }}
+
+[[maybe_unused]] const {NAMESPACE}::{BIOME_TYPE} {NAMESPACE}::{BIOME_NAME} = {{
+{biomes}
+}};
 """
 
     output_split[f"{file_names}"] = source
@@ -403,7 +484,7 @@ def main() :
     manifest = []
 
     colors = generate_colors(blocks, Path(args.client))
-    state_id_split = generate_lookups(args.file_names, blocks, colors)
+    state_id_split = generate_lookups(args.file_names, blocks, colors, generate_biome_colors(Path(args.client)))
     header = generate_header(len(state_id_split) - 1)
     output = Path(args.output_dir)
     header_path = output / "include" / "xaero" / "lookups" / ("Private" + args.file_names + ".hpp")

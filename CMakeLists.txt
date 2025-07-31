@@ -8,6 +8,7 @@ add_library(XaerosMapFormat
         src/Map.cpp
         src/util/ByteInputStream.cpp
         src/util/ByteOutputStream.cpp
+        src/util/StringUtils.cpp
         src/types/RegionImage.cpp
         src/types/Region.cpp
         src/types/LookupTypes.cpp
@@ -80,7 +81,7 @@ if (XAERO_GENERATE_RESOURCES)
     # install pillow
 
     execute_process(
-            COMMAND ${VENV_PYTHON} -m pip install Pillow argparse
+            COMMAND ${VENV_PYTHON} -m pip install Pillow argparse numpy
             RESULT_VARIABLE PIP_RESULT
     )
     if(NOT PIP_RESULT EQUAL 0)
@@ -219,6 +220,8 @@ if (XAERO_GENERATE_RESOURCES)
     set(GENERATED_FILE_NAMES "BlockLookups")
 
     if ((NOT EXISTS ${WORKING_DIRECTORY}/generated/manifest.txt) OR REQUIRES_DOWNLOAD OR REQUIRES_GENERATION)
+        message(STATUS "Running generation script")
+
         execute_process(
                 COMMAND
                 ${VENV_PYTHON} ${CMAKE_SOURCE_DIR}/generation/generator.py
