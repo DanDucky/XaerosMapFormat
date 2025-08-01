@@ -15,6 +15,15 @@ public:
     [[nodiscard]] T& operator*() {
         return *pointer;
     }
+    [[nodiscard]] T* operator->() {
+        return pointer;
+    }
+    [[nodiscard]] const T& operator*() const {
+        return *pointer;
+    }
+    [[nodiscard]] const T* operator->() const {
+        return pointer;
+    }
 
     OptionalOwnerPtr(OptionalOwnerPtr&)=delete;
     OptionalOwnerPtr(OptionalOwnerPtr&& other) noexcept : owns(other.owns), pointer(other.pointer){

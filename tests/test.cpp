@@ -17,8 +17,8 @@
 TEST_CASE("BlockLookups", "[BlockLookups]") {
     const xaero::IndexableView<const xaero::StateIDLookupElement&> wrapper = {xaero::defaultStateIDLookup};
     for (int i = 0; i < xaero::defaultStateIDLookupSize; i++) {
-        if (xaero::defaultStateIDLookup[i].has_value()) {
-            REQUIRE(wrapper[i]->state.name == xaero::defaultStateIDLookup[i]->state.name);
+        if (xaero::defaultLookupPack.stateIDLookup[i].has_value()) {
+            REQUIRE(wrapper[i]->state.name == xaero::defaultLookupPack.stateIDLookup[i].value().state.name);
         }
     }
 }

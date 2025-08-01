@@ -1,7 +1,7 @@
 #include "../../include/xaero/types/Region.hpp"
 
 bool xaero::Region::TileChunk::Chunk::Pixel::hasOverlays() const {
-    return !overlays.empty();
+    return overlays.size() > 0;
 }
 
 bool xaero::Region::TileChunk::Chunk::Pixel::isAir() const {

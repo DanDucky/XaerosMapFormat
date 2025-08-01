@@ -1,18 +1,17 @@
 #include <algorithm>
 #include <xaero/types/LookupTypes.hpp>
-#include <xaero/lookups/BlockLookups.hpp>
 #include <nbt_tags.h>
 #include <ranges>
+#include <set>
+
 #include "../util/StringUtils.hpp"
 
-#ifdef XAERO_DEFAULT_LOOKUPS
-[[maybe_unused]] const xaero::LookupPack xaero::defaultLookupPack = {
-    xaero::defaultStateLookup,
-    xaero::defaultStateIDLookup,
-    xaero::defaultStateIDLookupSize,
-    xaero::defaultBiomeLookup
-};
-#endif
+namespace xaero {
+    struct ValueCompare {
+        [[nodiscard]] bool operator()(const nbt::value& lhs, const nbt::value& rhs) const noexcept;
+    };
+}
+
 
 bool xaero::ValueCompare::operator()(const nbt::value &lhs, const nbt::value &rhs) const noexcept {
     if (lhs.get_ptr() != nullptr && rhs.get_ptr() != nullptr) { // this is about to be some serious cancer
@@ -74,7 +73,18 @@ bool xaero::ValueCompare::operator()(const nbt::value &lhs, const nbt::value &rh
 }
 
 bool xaero::CompoundCompare::operator()(const nbt::tag_compound &lhs, const nbt::tag_compound &rhs) const noexcept {
-    return std::ranges::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), [](const std::pair<const std::string, nbt::value>& a, const std::pair<const std::string, nbt::value>& b) -> bool {
+    if (lhs.size() == 0 || rhs.size() == 0) {
+        return false;
+    }
+
+    std::vector<std::string_view> output;
+    std::ranges::set_intersection(lhs | std::views::keys, rhs | std::views::keys, std::back_inserter(output));
+
+    const auto filter = [&output](const auto& pair) {
+        return std::ranges::contains(output, pair.first);
+    };
+
+    return std::ranges::lexicographical_compare(lhs | std::views::filter(filter), rhs | std::views::filter(filter), [](const std::pair<const std::string, nbt::value>& a, const std::pair<const std::string, nbt::value>& b) -> bool {
         if (a.first != b.first) {
             return a.first < b.first;
         }
@@ -92,5 +102,5 @@ bool xaero::NameEquals::operator()(const std::string_view &a, const std::string_
 }
 
 bool xaero::NameCompare::operator()(const std::string_view &a, const std::string_view &b) const noexcept {
-    return stripName(a).compare(stripName(b));
+    return stripName(a).compare(stripName(b)) < 0;
 }

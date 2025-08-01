@@ -355,6 +355,8 @@ def generate_state_lookup(blocks : dict, colors : dict) -> str :
                     continue
                 break
 
+        if len(states) == 0 :
+            states.append(({}, ((0, 0, 0, 0), -1)))
         output[str(name).split(":")[1]] = states
 
     # I hate this so much but I can't bring myself to make some nasty string builder situation and the conversion only works for this "type" so I don't wanna make a generic dict to map function

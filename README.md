@@ -17,6 +17,7 @@ cmake --build <path/to/build/dir>
 |:---------------------------|:--------------------------------------------------------------------------|:--------------|
 | `XAERO_BUILD_TESTS`        | Builds test executable                                                    | `ON`          |
 | `XAERO_GENERATE_RESOURCES` | Generates Minecraft data lookup tables for rendering and format upgrades. | `ON`          |
+| `XAERO_BUILD_EXAMPLES`     | Builds example programs                                                   | `ON`          |
 
 ## Dependencies
 
@@ -38,6 +39,8 @@ All of these dependencies are managed and downloaded by CPM in the provided CMak
 - [libnbt++](https://github.com/PrismLauncher/libnbtplusplus)
 - [ztd.text](https://github.com/soasis/text)
 - [minizip-ng](https://github.com/zlib-ng/minizip-ng)
+- [args](https://github.com/Taywee/args) (if `XAERO_BUILD_EXAMPLES`)
+- [stb_image_write](https://github.com/nothings/stb) (if `XAERO_BUILD_EXAMPLES`)
 
 ## Versioning
 

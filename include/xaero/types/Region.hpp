@@ -15,7 +15,6 @@ namespace xaero {
             struct Chunk {
                 struct Pixel {
                     std::uint8_t light;
-                    std::optional<std::uint8_t> slope;
                     std::int16_t height;
                     std::optional<std::uint8_t> topHeight;
 

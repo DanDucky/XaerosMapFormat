@@ -17,9 +17,6 @@ namespace xaero {
     struct CompoundCompare {
         [[nodiscard]] bool operator()(const nbt::tag_compound& lhs, const nbt::tag_compound& rhs) const noexcept;
     };
-    struct ValueCompare {
-        [[nodiscard]] bool operator()(const nbt::value& lhs, const nbt::value& rhs) const noexcept;
-    };
 
     struct StateIDPack {
         BlockState state;
@@ -40,7 +37,7 @@ namespace xaero {
         [[nodiscard]] bool operator()(const std::string_view& a, const std::string_view& b) const noexcept;
     };
 
-    struct NameCompare {
+    struct NameCompare { // removes minecraft:*
         [[nodiscard]] bool operator()(const std::string_view& a, const std::string_view& b) const noexcept;
     };
 
@@ -74,9 +71,4 @@ namespace xaero {
         const std::size_t stateIDLookupSize;
         const BiomeLookup& biomeLookup;
     };
-
-#ifdef XAERO_DEFAULT_LOOKUPS
-    extern const LookupPack defaultLookupPack;
-#endif
-
 } // xaero

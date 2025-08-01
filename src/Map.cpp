@@ -11,6 +11,7 @@
 #include "xaero/types/Region.hpp"
 #include "xaero/types/LookupTypes.hpp"
 #include "xaero/util/IndexableView.hpp"
+#include "lookups/LegacyCompatibility.hpp"
 #include "util/ByteInputStream.hpp"
 #include "util/ByteOutputStream.hpp"
 #include "util/OptionalOwnerPtr.hpp"
@@ -28,6 +29,15 @@
 #include "util/StringUtils.hpp"
 
 namespace xaero {
+    // so these are entirely internal to this library, that's why they're not exposed
+    // mojang doesn't use these same indices and when I read in the blocks I manually set these unless mojang "got them right"
+    enum class TintIndex : std::int32_t {
+        NONE = -1,
+        GRASS = 0,
+        FOLIAGE = 1,
+        DRY_FOLIAGE = 2,
+        REDSTONE = 3
+    };
 
     enum class ColorType : std::uint8_t { // legacy color type system, not supported by Xaero and not rendered by this
         NONE = 0,
@@ -49,195 +59,29 @@ namespace xaero {
         return stripName(out);
     }
 
-    std::pair<OptionalOwnerPtr<const BlockState>, std::optional<RegionImage::Pixel>> getState(const std::variant<std::monostate, std::int32_t, BlockState, std::shared_ptr<BlockState>, BlockState*>& state, const LookupPack* lookups) {
+    std::pair<OptionalOwnerPtr<const BlockState>, std::optional<std::pair<RegionImage::Pixel, TintIndex>>> getState(const std::variant<std::monostate, std::int32_t, BlockState, std::shared_ptr<BlockState>, BlockState*>& state, const LookupPack* lookups) {
         if (std::holds_alternative<std::monostate>(state)) {
-            return {OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false), RegionImage::Pixel{0,0,0,0}};
+            return {OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false), std::pair{RegionImage::Pixel{0,0,0,0}, TintIndex::NONE}};
         } else if (std::holds_alternative<std::int32_t>(state)) {
             const auto stateID = std::get<std::int32_t>(state);
             if (stateID >= lookups->stateIDLookupSize) {
-                return {OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false), RegionImage::Pixel{0,0,0,0}};
+                return {OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false), std::pair{RegionImage::Pixel{0,0,0,0}, TintIndex::NONE}};
             } else {
                 if (const auto statePack = lookups->stateIDLookup[stateID];
                     !statePack) {
 
-                    return {OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false), RegionImage::Pixel{0,0,0,0}};
+                    return {OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false), std::pair{RegionImage::Pixel{0,0,0,0}, TintIndex::NONE}};
                 } else {
-                    return {OptionalOwnerPtr(&statePack.value().state, false), statePack.value().color};
+                    return {OptionalOwnerPtr(&statePack.value().state, false), std::pair{statePack.value().color, static_cast<TintIndex>(statePack.value().tintIndex)}};
                 }
             }
         } else {
             if (std::holds_alternative<BlockState*>(state)) {
-                return {OptionalOwnerPtr<const BlockState>(std::get<BlockState*>(state), false), {}};
+                return {OptionalOwnerPtr<const BlockState>(std::get<BlockState*>(state), false), std::nullopt};
             } else if (std::holds_alternative<BlockState>(state)) {
-                return {OptionalOwnerPtr<const BlockState>(&std::get<BlockState>(state), false), {}};
+                return {OptionalOwnerPtr<const BlockState>(&std::get<BlockState>(state), false), std::nullopt};
             } else {
-                return {OptionalOwnerPtr<const BlockState>(std::get<std::shared_ptr<BlockState>>(state).get(), false), {}};
-            }
-        }
-
-    }
-
-    static std::string_view fixBiome (const std::string_view& biome) {
-        static const std::map<std::string_view, std::string_view, NameCompare> lookup {
-            {"badlands_plateau", "badlands"},
-            {"bamboo_jungle_hills", "bamboo_jungle"},
-            {"birch_forest_hills", "birch_forest"},
-            {"dark_forest_hills", "dark_forest"},
-            {"desert_hills", "desert"},
-            {"desert_lakes", "desert"},
-            {"giant_spruce_taiga_hills", "old_growth_spruce_taiga"},
-            {"giant_spruce_taiga", "old_growth_spruce_taiga"},
-            {"giant_tree_taiga_hills", "old_growth_pine_taiga"},
-            {"giant_tree_taiga", "old_growth_pine_taiga"},
-            {"gravelly_mountains", "windswept_gravelly_hills"},
-            {"jungle_edge", "sparse_jungle"},
-            {"jungle_hills", "jungle"},
-            {"modified_badlands_plateau", "badlands"},
-            {"modified_gravelly_mountains", "windswept_gravelly_hills"},
-            {"modified_jungle_edge", "sparse_jungle"},
-            {"modified_jungle", "jungle"},
-            {"modified_wooded_badlands_plateau", "wooded_badlands"},
-            {"mountain_edge", "windswept_hills"},
-            {"mountains", "windswept_hills"},
-            {"mushroom_field_shore", "mushroom_fields"},
-            {"shattered_savanna", "windswept_savanna"},
-            {"shattered_savanna_plateau", "windswept_savanna"},
-            {"snowy_mountains", "snowy_plains"},
-            {"snowy_taiga_hills", "snowy_taiga"},
-            {"snowy_taiga_mountains", "snowy_taiga"},
-            {"snowy_tundra", "snowy_plains"},
-            {"stone_shore", "stony_shore"},
-            {"swamp_hills", "swamp"},
-            {"taiga_hills", "taiga"},
-            {"taiga_mountains", "taiga"},
-            {"tall_birch_forest", "old_growth_birch_forest"},
-            {"tall_birch_hills", "old_growth_birch_forest"},
-            {"wooded_badlands_plateau", "wooded_badlands"},
-            {"wooded_hills", "forest"},
-            {"wooded_mountains", "windswept_forest"},
-            {"lofty_peaks", "jagged_peaks"},
-            {"snowcapped_peaks", "frozen_peaks"}
-        };
-
-        if (const auto fixed = lookup.find(biome);
-            fixed != lookup.end()) {
-
-            return fixed->second;
-        }
-        return biome;
-    }
-
-    static std::string_view getBiomeFromID(const std::uint32_t biomeID) {
-        static constexpr std::string_view lookup[] = {
-            "ocean","plains","desert","mountains","forest","taiga","swamp","river","nether_wastes","the_end","frozen_ocean","frozen_river","snowy_tundra","snowy_mountains","mushroom_fields","mushroom_field_shore","beach","desert_hills","wooded_hills","taiga_hills","mountain_edge","jungle","jungle_hills","jungle_edge","deep_ocean","stone_shore","snowy_beach","birch_forest","birch_forest_hills","dark_forest","snowy_taiga","snowy_taiga_hills","giant_tree_taiga","giant_tree_taiga_hills","wooded_mountains","savanna","savanna_plateau","badlands","wooded_badlands_plateau","badlands_plateau","small_end_islands","end_midlands","end_highlands","end_barrens","warm_ocean","lukewarm_ocean","cold_ocean","deep_warm_ocean","deep_lukewarm_ocean","deep_cold_ocean","deep_frozen_ocean","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","the_void","","sunflower_plains","desert_lakes","gravelly_mountains","flower_forest","taiga_mountains","swamp_hills","","","","","","ice_spikes","","","","","","","","","modified_jungle","","modified_jungle_edge","","","","tall_birch_forest","tall_birch_hills","dark_forest_hills","snowy_taiga_mountains","","giant_spruce_taiga","giant_spruce_taiga_hills","modified_gravelly_mountains","shattered_savanna","shattered_savanna_plateau","eroded_badlands","modified_wooded_badlands_plateau","modified_badlands_plateau","bamboo_jungle","bamboo_jungle_hills","soul_sand_valley","crimson_forest","warped_forest","basalt_deltas","dripstone_caves","lush_caves","","meadow","grove","snowy_slopes","snowcapped_peaks","lofty_peaks","stony_peaks"
-        };
-
-        if (biomeID >= sizeof(lookup) / sizeof(std::string_view) ||
-            lookup[biomeID].empty()) {
-
-            return "plains";
-        }
-        return lookup[biomeID];
-    }
-
-    static void convertNBT(std::unique_ptr<nbt::tag_compound>& nbt, const std::int16_t majorVersion) {
-        if (majorVersion == 1) {
-            const auto name = nbt->at("Name").as<nbt::tag_string>().get();
-            static const std::map<std::string_view, std::string_view> convert {
-                {"minecraft:stone_slab", "minecraft:smooth_stone_slab"},
-                {"minecraft:sign", "minecraft:oak_sign"},
-                {"minecraft:wall_sign", "minecraft:oak_wall_sign"}};
-            const auto fixed = convert.find(name);
-            nbt->put("Name", (fixed != convert.end() ? fixed->second : name).data());
-        }
-
-        if (majorVersion < 3) {
-            const auto name = nbt->at("Name").as<nbt::tag_string>().get();
-            static const auto wallFix = [](std::unique_ptr<nbt::tag_compound>& tag) -> void {
-                auto& properties = tag->at("Properties").as<nbt::tag_compound>();
-                properties.put("north", properties.at("north").as<nbt::tag_string>().get() == "true" ? "low" : "none");
-                properties.put("south", properties.at("south").as<nbt::tag_string>().get() == "true" ? "low" : "none");
-                properties.put("east", properties.at("east").as<nbt::tag_string>().get() == "true" ? "low" : "none");
-                properties.put("west", properties.at("west").as<nbt::tag_string>().get() == "true" ? "low" : "none");
-            };
-            static const std::map<std::string_view, std::function<void(std::unique_ptr<nbt::tag_compound>&)>> convert {
-                {"minecraft:jigsaw", [](std::unique_ptr<nbt::tag_compound>& tag) {
-                    auto& properties = tag->at("Properties").as<nbt::tag_compound>();
-                    const auto facing = properties.at("facing").as<nbt::tag_string>().get();
-                    properties.erase("facing");
-                    static const std::map<std::string_view, std::string_view> convert {
-                        {"", "north_up"},
-                        {"down", "down_south"},
-                        {"up", "up_north"},
-                        {"north", "north_up"},
-                        {"south", "south_up"},
-                        {"west", "west_up"},
-                        {"east", "east_up"}
-                    };
-
-                    properties.put("orientation", convert.at(facing).data());
-                }},
-                {"minecraft:redstone_wire", [](std::unique_ptr<nbt::tag_compound>& tag) {
-                    auto& properties = tag->at("Properties").as<nbt::tag_compound>();
-                    auto north = properties.at("north").as<nbt::tag_string>().get();
-                    auto south = properties.at("south").as<nbt::tag_string>().get();
-                    auto east = properties.at("east").as<nbt::tag_string>().get();
-                    auto west = properties.at("west").as<nbt::tag_string>().get();
-
-                    properties.put("north",
-                        north.empty() ? (west.empty() && east.empty() ? "side" : "none") : north);
-                    properties.put("south",
-                        south.empty() ? (west.empty() && east.empty() ? "side" : "none") : south);
-                    properties.put("east",
-                        east.empty() ? (north.empty() && south.empty() ? "side" : "none") : east);
-                    properties.put("west",
-                        west.empty() ? (north.empty() && south.empty() ? "side" : "none") : west);
-                }},
-                {"minecraft:andesite_wall", wallFix},
-                {"minecraft:brick_wall", wallFix},
-                {"minecraft:cobblestone_wall", wallFix},
-                {"minecraft:diorite_wall", wallFix},
-                {"minecraft:end_stone_brick_wall", wallFix},
-                {"minecraft:granite_wall", wallFix},
-                {"minecraft:mossy_cobblestone_wall", wallFix},
-                {"minecraft:mossy_stone_brick_wall", wallFix},
-                {"minecraft:nether_brick_wall", wallFix},
-                {"minecraft:prismarine_wall", wallFix},
-                {"minecraft:red_nether_brick_wall", wallFix},
-                {"minecraft:red_sandstone_wall", wallFix},
-                {"minecraft:sandstone_wall", wallFix},
-                {"minecraft:stone_brick_wall", wallFix}
-            };
-
-            if (const auto converter = convert.find(name);
-                converter != convert.end()) {
-
-                converter->second(nbt);
-            }
-        }
-
-        if (majorVersion < 5) {
-            const auto name = nbt->at("Name").as<nbt::tag_string>().get();
-            static const std::map<std::string_view, std::function<void(std::unique_ptr<nbt::tag_compound>&)>> convert {
-                {"minecraft:cauldron",  [](std::unique_ptr<nbt::tag_compound>& tag) {
-                    auto& properties = tag->at("Properties").as<nbt::tag_compound>();
-                    if (properties.size() == 0) return;
-
-                    if (!properties.has_key("level") || tag->at("level").as<nbt::tag_string>().get() == "0") {
-                        tag->erase("Properties");
-                    } else {
-                        tag->put("Name", "minecraft:water_cauldron");
-                    }
-                }},
-                {"minecraft:grass_path",  [](std::unique_ptr<nbt::tag_compound>& tag) {
-                    tag->put("Name", "minecraft:dirt_path");
-                }}
-            };
-
-            if (const auto converter = convert.find(name);
-                converter != convert.end()) {
-
-                converter->second(nbt);
+                return {OptionalOwnerPtr<const BlockState>(std::get<std::shared_ptr<BlockState>>(state).get(), false), std::nullopt};
             }
         }
 
@@ -477,7 +321,7 @@ namespace xaero {
                             }
 
                             if (region.minorVersion == 2 && hasSlope) {
-                                pixel.slope = stream.getNext<std::uint8_t>();
+                                stream.skip(1);
                             }
                         }
                     }
@@ -542,7 +386,7 @@ namespace xaero {
                                 BitWriter<std::uint32_t> parameters;
 
                                 auto [state, _] = getState(pixel.state, lookups);
-                                const bool isGrass = state.pointer->isName("grass_block");
+                                const bool isGrass = state->isName("grass_block");
 
                                 parameters.writeNext(!isGrass, 1);
                                 parameters.writeNext(pixel.hasOverlays(), 1);
@@ -596,7 +440,7 @@ namespace xaero {
                                     } else {
                                         nbt::io::stream_writer nbtWriter(stream.getStream());
 
-                                        nbtWriter.write_tag("", state.pointer->getNBT()); // for some reason needs an empty key...
+                                        nbtWriter.write_tag("", state->getNBT()); // for some reason needs an empty key...
 
                                         statePalette.push_back(std::move(state));
                                     }
@@ -613,7 +457,7 @@ namespace xaero {
                                         BitWriter<std::uint32_t> overlayParameters;
 
                                         const auto [overlayState, _] = getState(overlay.state, lookups);
-                                        bool isWater = overlayState.pointer->isName("water");
+                                        bool isWater = overlayState->isName("water");
 
                                         overlayParameters.writeNext(!isWater, 1);
                                         overlayParameters.writeNext(false, 1); // legacy opacity
@@ -642,7 +486,7 @@ namespace xaero {
                                             } else {
                                                 nbt::io::stream_writer nbtWriter(stream.getStream());
 
-                                                nbtWriter.write_payload(state.pointer->getNBT());
+                                                nbtWriter.write_payload(state->getNBT());
 
                                                 statePalette.push_back(std::move(state));
                                             }
@@ -776,25 +620,73 @@ namespace xaero {
         return error == MZ_OK;
     }
 
+    float getBrightnessMultiplier (const std::uint8_t min, const std::uint8_t light, const std::uint8_t sun=15) {
+        return static_cast<float>(min) + static_cast<float>(std::max(sun, light)) / (15.0F + min);
+    }
+
     // separated so it can be used on both the overlays and the pixels
-    RegionImage::Pixel getPixelColor(
+    RegionImage::Pixel getStateColor(
         const std::variant<std::monostate, std::int32_t, BlockState, std::shared_ptr<BlockState>, BlockState*>& stateVariant,
-        const std::string_view& biome,
+        const BiomeColors& biome,
         const LookupPack* lookups) {
 
         RegionImage::Pixel color;
+        TintIndex tint;
+        const auto [state, maybeColor] = getState(stateVariant, lookups);
+        if (!maybeColor) {
 
-        if (const auto [state, maybeColor] = getState(stateVariant, lookups);
-            !maybeColor) {
-
-            const auto properties = lookups->stateLookup.find(state.pointer->strippedName());
+            const auto properties = lookups->stateLookup.find(state->strippedName());
 
             if (properties != lookups->stateLookup.end()) {
-                color = properties->second.at(state.pointer->properties).color;
+                const auto& pack = properties->second.at(state->properties);
+                color = pack.color;
+                tint = static_cast<TintIndex>(pack.tintIndex);
+            } else {
+                tint = TintIndex::NONE;
             }
         } else {
-            color = maybeColor.value();
+            color = maybeColor.value().first;
+            tint = maybeColor.value().second;
         }
+
+        if (tint != TintIndex::NONE) {
+            const auto strippedName = state->strippedName();
+            if (strippedName.contains("redstone")) {
+                tint = TintIndex::REDSTONE;
+            } else if (strippedName == "leaf_litter") {
+                tint = TintIndex::DRY_FOLIAGE;
+            } else if (strippedName.contains("leaves") || strippedName == "vine") {
+                tint = TintIndex::FOLIAGE;
+            }
+        }
+
+        RegionImage::Pixel tintColor = {255, 255, 255}; // will cancel out in the math;
+        switch (tint) {
+            case TintIndex::NONE:
+                break;
+            case TintIndex::GRASS:
+                tintColor = biome.grass;
+                break;
+            case TintIndex::FOLIAGE:
+                tintColor = biome.foliage;
+                break;
+            case TintIndex::DRY_FOLIAGE:
+                tintColor = biome.dryFoliage;
+                break;
+            case TintIndex::REDSTONE:
+                tintColor = {231, 6, 0}; // pretty random
+                break;
+        }
+
+        // apply tint
+        color.red   = (color.red   * tintColor.red)   / 255;
+        color.blue  = (color.blue  * tintColor.blue)  / 255;
+        color.green = (color.green * tintColor.green) / 255;
+
+        // this is where I would apply glowing effects, but I can't find a consistent way of grabbing that info from the game (without launching it)... honestly should write my own data generator mod
+        // but that would only complicate the configure step for very little payoff... maybe some day if I care
+
+        return color;
     }
 
     RegionImage Map::generateImage(const Region &region, const LookupPack *lookups) {
@@ -803,39 +695,40 @@ namespace xaero {
         if (lookups == nullptr) { // bad!!!
             return output;
         }
-        for (std::uint16_t tileChunkX = 0; tileChunkX < 4; tileChunkX++) {
-            for (std::uint16_t tileChunkZ = 0; tileChunkZ < 4; tileChunkZ++) {
+        for (std::uint16_t tileChunkX = 0; tileChunkX < 8; tileChunkX++) {
+            for (std::uint16_t tileChunkZ = 0; tileChunkZ < 8; tileChunkZ++) {
                 if (!region[tileChunkX][tileChunkZ].isPopulated()) continue;
-                for (std::uint16_t chunkX = 0; chunkX < 8; chunkX++) {
-                    for (std::uint16_t chunkZ = 0; chunkZ < 8; chunkZ++) {
+                for (std::uint16_t chunkX = 0; chunkX < 4; chunkX++) {
+                    for (std::uint16_t chunkZ = 0; chunkZ < 4; chunkZ++) {
                         const auto& chunk = region[tileChunkX][tileChunkZ][chunkX][chunkZ];
                         if (!chunk.isPopulated()) continue;
                         for (std::uint8_t pixelX = 0; pixelX < 16; pixelX++) {
                             for (std::uint8_t pixelZ = 0; pixelZ < 16; pixelZ++) {
-                                const std::uint16_t x = pixelX | chunkX << 4 | tileChunkX << 7;
-                                const std::uint16_t z = pixelZ | chunkZ << 4 | tileChunkZ << 7;
-                                const auto& pixel = chunk[x][z];
+                                const std::uint16_t x = pixelX | chunkX << 4 | tileChunkZ << 6;
+                                const std::uint16_t z = pixelZ | chunkZ << 4 | tileChunkX << 6;
+                                const auto& pixel = chunk[pixelX][pixelZ];
 
-                                auto color = chunk.caveStart == -1 ?
-                                RegionImage::Pixel{
-                                    10,
-                                    0,
-                                    23,
-                                    255
-                                } : RegionImage::Pixel{0,0,0,0};
+                                const auto biome = pixel.biome ? getBiome(pixel.biome.value()) : "plains";
 
-                                if (!pixel.isAir()) { // I could use getState here but it's unnecessary because it's multiple lookups just to get color on ids
-                                    if (const auto [state, maybeColor] = getState(pixel.state, lookups);
-                                        !maybeColor) {
-                                        const auto properties = lookups->stateLookup.find(state.pointer->strippedName());
-                                        if (properties != lookups->stateLookup.end()) {
-                                            color = properties->second.at(state.pointer->properties).color;
-                                        }
-                                    } else {
-                                        color = maybeColor.value();
-                                    }
+                                const auto foundBiome = lookups->biomeLookup.find(biome);
+                                BiomeColors biomeColors;
+                                if (foundBiome != lookups->biomeLookup.end()) {
+                                    biomeColors = foundBiome->second;
+                                } else {
+                                    biomeColors = lookups->biomeLookup.at("plains");
                                 }
 
+                                auto color = getStateColor(pixel.state, biomeColors, lookups);
+
+                                output[x][z] = color;
+
+                                if (pixel.hasOverlays()) {
+                                    for (const auto& overlay : pixel.overlays) {
+                                        auto overlayColor = getStateColor(overlay.state, biomeColors, lookups);
+
+                                        const auto intensity = getBrightnessMultiplier(9, overlay.light, 15);
+                                    }
+                                }
                             }
                         }
                     }

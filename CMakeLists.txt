@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.31.0)
 set(CMAKE_CXX_STANDARD 23)
 project(XaerosMapFormat VERSION 0.1 DESCRIPTION "library for parsing XaerosMap data and rendering it to images")
+
 option(XAERO_BUILD_TESTS "builds catch2 tests" ON)
 option(XAERO_GENERATE_RESOURCES "generates minecraft lookup tables for colors and names, requires java and python" ON)
+option(XAERO_BUILD_EXAMPLES "builds example programs" ON)
 
 add_library(XaerosMapFormat
         src/Map.cpp
@@ -13,6 +15,9 @@ add_library(XaerosMapFormat
         src/types/Region.cpp
         src/types/LookupTypes.cpp
         src/types/BlockState.cpp
+        src/lookups/LegacyCompatibility.cpp
+        src/lookups/LegacyCompatibility.hpp
+        src/lookups/BlockLookups.cpp
 )
 
 file (DOWNLOAD
@@ -271,6 +276,10 @@ if (XAERO_BUILD_TESTS)
     include(${Catch2_SOURCE_DIR}/extras/Catch.cmake)
 
     catch_discover_tests(tests)
+endif ()
+
+if (XAERO_BUILD_EXAMPLES)
+    add_subdirectory(examples)
 endif ()
 
 install(TARGETS XaerosMapFormat
