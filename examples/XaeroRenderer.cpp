@@ -8,7 +8,7 @@
 #include <stb_image_write.h>
 
 xaero::RegionImage getImage (const std::filesystem::path& data) {
-    std::cout << "Getting: " << data.c_str() << "\n";
+    std::cout << "Getting: " << data.string() << "\n";
 
     return xaero::Map::generateImage(xaero::Map::parseRegion(data), &xaero::defaultLookupPack);
 }
@@ -46,6 +46,11 @@ int main(int argc, char** argv) {
     }
 
     const std::filesystem::path outputRoot(*output);
+
+    xaero::RegionImage image;
+    image[0][0] = {255, 0,255, 255};
+    writeImage(image, outputRoot / "sample.png");
+
     if (const std::filesystem::path input(*files);
         is_directory(input)) {
         for (const auto& file : std::filesystem::directory_iterator(input)) {

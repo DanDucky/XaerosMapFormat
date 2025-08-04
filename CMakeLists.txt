@@ -57,8 +57,98 @@ CPMAddPackage(
             "NBT_BUILD_TESTS OFF"
 )
 
+set(WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/XaerosMapFormat")
+
+set(LEGACY_BLOCKS "${WORKING_DIRECTORY}/blocks.json")
+
+if (NOT EXISTS ${LEGACY_BLOCKS})
+    file(DOWNLOAD
+            "https://raw.githubusercontent.com/PrismarineJS/minecraft-data/refs/heads/master/data/pc/1.12/blocks.json"
+            ${LEGACY_BLOCKS}
+            STATUS BLOCKS_RESULT
+    )
+
+    if (NOT BLOCKS_RESULT EQUAL 0)
+        file(REMOVE ${LEGACY_BLOCKS})
+        message(FATAL_ERROR "Failed to download blocks.json from https://raw.githubusercontent.com/PrismarineJS/minecraft-data/refs/heads/master/data/pc/1.12/blocks.json")
+    endif ()
+endif ()
+
+set(STATE_ID_LOOKUP "${WORKING_DIRECTORY}/generated/src/lookups/StateIDLookup.cpp")
+
+set(STATE_ID_CONTENT
+"#include \"lookups/LegacyCompatibility.hpp\"
+namespace xaero {
+
+const StateIDLookup stateIDLookup = {")
+
+file(READ ${LEGACY_BLOCKS} BLOCKS)
+
+string(JSON BLOCKS_LENGTH LENGTH ${BLOCKS})
+math(EXPR BLOCKS_LENGTH "${BLOCKS_LENGTH}-1")
+
+set(LAST_ID -1)
+
+foreach (I RANGE ${BLOCKS_LENGTH})
+    string(JSON BLOCK GET ${BLOCKS} ${I})
+    string(JSON BLOCK_NAME GET ${BLOCK} "displayName")
+    string(REGEX REPLACE "[^A-Za-z]+" "_" BLOCK_NAME "${BLOCK_NAME}")
+    string(TOLOWER ${BLOCK_NAME} BLOCK_NAME)
+    string(JSON ID GET ${BLOCK} "id")
+
+    math(EXPR SKIPPED "${ID} - (${LAST_ID} + 1)")
+
+    if (NOT ${SKIPPED} EQUAL 0)
+        string(REPEAT "{}," ${SKIPPED} PADDING)
+        string(REGEX REPLACE ".$" "" PADDING "${PADDING}")
+
+        list(APPEND STATE_ID_CONTENT_LIST "${PADDING}")
+    endif ()
+
+    set(LAST_ID ${ID})
+
+    string(JSON VARIATIONS ERROR_VARIABLE VARIATIONS_ERROR GET "${BLOCK}" "variations")
+    if (NOT "${VARIATIONS_ERROR}" STREQUAL "NOTFOUND")
+        list(APPEND STATE_ID_CONTENT_LIST "{BlockState{\"${BLOCK_NAME}\", nbt::tag_compound{}}}")
+        continue()
+    endif ()
+
+    string(JSON VARIATIONS_LENGTH LENGTH ${VARIATIONS})
+    math(EXPR VARIATIONS_LENGTH "${VARIATIONS_LENGTH}-1")
+    set(VARIATION_LIST "")
+
+    foreach (J RANGE ${VARIATIONS_LENGTH})
+        string(JSON BLOCK GET "${VARIATIONS}" ${J})
+        string(JSON BLOCK_NAME GET "${BLOCK}" "displayName")
+        string(REGEX REPLACE "[^A-Za-z]+" "_" BLOCK_NAME "${BLOCK_NAME}") # this works for most but not all, idgaf abt the ones it doesn't work for and idk how Xaeros made their dataset
+        string(TOLOWER ${BLOCK_NAME} BLOCK_NAME)
+
+        list(APPEND VARIATION_LIST "BlockState{\"${BLOCK_NAME}\", nbt::tag_compound{}}")
+    endforeach ()
+
+    list(JOIN VARIATION_LIST "," VARIATIONS_OUTPUT)
+
+    list(APPEND STATE_ID_CONTENT_LIST "{${VARIATIONS_OUTPUT}}")
+endforeach ()
+
+list(JOIN STATE_ID_CONTENT_LIST ",\n" STATE_ID_CONTENT_JOINED)
+
+math(EXPR BLOCKS_LENGTH "${BLOCKS_LENGTH}+1") # reset to normal length because cmake is garbage and uses inclusive ranges
+
+string(APPEND STATE_ID_CONTENT "${STATE_ID_CONTENT_JOINED}")
+string(APPEND STATE_ID_CONTENT "}\;const std::size_t stateIDLookupSize = ${BLOCKS_LENGTH}\;}\n")
+
+file(WRITE "${STATE_ID_LOOKUP}" ${STATE_ID_CONTENT})
+
+message(STATUS "${STATE_ID_CONTENT}")
+
+add_library(XaerosLegacy OBJECT ${STATE_ID_LOOKUP})
+target_link_libraries(XaerosLegacy PRIVATE nbt++)
+target_include_directories(XaerosLegacy PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(XaerosLegacy PRIVATE include)
+target_link_libraries(XaerosMapFormat PRIVATE XaerosLegacy) # legacy lookups
+
 if (XAERO_GENERATE_RESOURCES)
-    set(WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/XaerosMapFormat")
 
     find_package(Java 21 REQUIRED COMPONENTS Runtime)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
@@ -246,7 +336,7 @@ if (XAERO_GENERATE_RESOURCES)
     file(STRINGS ${WORKING_DIRECTORY}/generated/manifest.txt SOURCES_LIST)
 
     add_library(XaerosLookups OBJECT ${SOURCES_LIST})
-    target_link_libraries(XaerosLookups PUBLIC nbt++)
+    target_link_libraries(XaerosLookups PRIVATE nbt++)
     target_include_directories(XaerosLookups PRIVATE ${WORKING_DIRECTORY}/generated/include)
     target_compile_definitions(XaerosLookups PUBLIC XAERO_DEFAULT_LOOKUPS=1)
     target_include_directories(XaerosLookups PUBLIC include)

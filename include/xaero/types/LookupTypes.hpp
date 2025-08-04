@@ -66,9 +66,11 @@ namespace xaero {
      * @warning these are stored as references! please don't move them while this is in use anywhere
      */
     struct LookupPack {
-        const StateLookup& stateLookup;
+        const StateLookup* stateLookup;
+
         const IndexableView<const StateIDLookupElement&>& stateIDLookup;
-        const std::size_t stateIDLookupSize;
-        const BiomeLookup& biomeLookup;
+        const std::size_t stateIDLookupSize=0; // keep < 1 to ignore stateIDLookup
+
+        const BiomeLookup* biomeLookup;
     };
 } // xaero

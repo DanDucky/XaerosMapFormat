@@ -42,6 +42,8 @@ namespace xaero {
             static_assert(!std::is_const_v<Container> || std::is_const_v<T>, "Element type is mutable but data type is const!");
         }
 
+        IndexableView()=default;
+
         Entry& operator[](std::size_t index) {
             return subscript(index);
         }

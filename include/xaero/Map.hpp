@@ -30,13 +30,13 @@ namespace xaero {
 
         static std::string serializeRegion(const Region& region, const LookupPack* lookups
 #ifdef XAERO_DEFAULT_LOOKUPS
-        = nullptr
+        = &defaultLookupPack
 #endif
         );
         static std::string packRegion(const std::string_view &serialized);
         static bool writeRegion(const Region& region, const std::filesystem::path& path, const LookupPack* lookups
 #ifdef XAERO_DEFAULT_LOOKUPS
-        = nullptr
+        = &defaultLookupPack
 #endif
         );
 
@@ -49,7 +49,7 @@ namespace xaero {
          */
         static RegionImage generateImage(const Region& region, const LookupPack *lookups
 #ifdef XAERO_DEFAULT_LOOKUPS
-        = nullptr
+        = &defaultLookupPack
 #endif
         );
         /**

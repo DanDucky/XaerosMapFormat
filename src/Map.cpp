@@ -29,6 +29,11 @@
 #include "util/StringUtils.hpp"
 
 namespace xaero {
+    static const auto AIR_STATE = BlockState{
+        "air",
+        nbt::tag_compound{}
+    };
+
     // so these are entirely internal to this library, that's why they're not exposed
     // mojang doesn't use these same indices and when I read in the blocks I manually set these unless mojang "got them right"
     enum class TintIndex : std::int32_t {
@@ -61,16 +66,16 @@ namespace xaero {
 
     std::pair<OptionalOwnerPtr<const BlockState>, std::optional<std::pair<RegionImage::Pixel, TintIndex>>> getState(const std::variant<std::monostate, std::int32_t, BlockState, std::shared_ptr<BlockState>, BlockState*>& state, const LookupPack* lookups) {
         if (std::holds_alternative<std::monostate>(state)) {
-            return {OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false), std::pair{RegionImage::Pixel{0,0,0,0}, TintIndex::NONE}};
+            return {OptionalOwnerPtr(&AIR_STATE, false), std::pair{RegionImage::Pixel{0,0,0,0}, TintIndex::NONE}};
         } else if (std::holds_alternative<std::int32_t>(state)) {
             const auto stateID = std::get<std::int32_t>(state);
             if (stateID >= lookups->stateIDLookupSize) {
-                return {OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false), std::pair{RegionImage::Pixel{0,0,0,0}, TintIndex::NONE}};
+                return {OptionalOwnerPtr(&AIR_STATE, false), std::pair{RegionImage::Pixel{0,0,0,0}, TintIndex::NONE}};
             } else {
                 if (const auto statePack = lookups->stateIDLookup[stateID];
                     !statePack) {
 
-                    return {OptionalOwnerPtr(&lookups->stateIDLookup[0].value().state, false), std::pair{RegionImage::Pixel{0,0,0,0}, TintIndex::NONE}};
+                    return {OptionalOwnerPtr(&AIR_STATE, false), std::pair{RegionImage::Pixel{0,0,0,0}, TintIndex::NONE}};
                 } else {
                     return {OptionalOwnerPtr(&statePack.value().state, false), std::pair{statePack.value().color, static_cast<TintIndex>(statePack.value().tintIndex)}};
                 }
@@ -518,13 +523,6 @@ namespace xaero {
 
 
     std::string Map::serializeRegion(const Region &region, const LookupPack *lookups) {
-        if (lookups == nullptr) {
-            #ifdef XAERO_DEFAULT_LOOKUPS
-                lookups = &defaultLookupPack;
-            #else
-                return "";
-            #endif
-        }
         auto stringStream = std::ostringstream();
         ByteOutputStream stream(stringStream);
         serializeRegionImpl(region, stream, lookups);
@@ -633,11 +631,12 @@ namespace xaero {
         RegionImage::Pixel color;
         TintIndex tint;
         const auto [state, maybeColor] = getState(stateVariant, lookups);
+
         if (!maybeColor) {
 
-            const auto properties = lookups->stateLookup.find(state->strippedName());
+            const auto properties = lookups->stateLookup->find(state->strippedName());
 
-            if (properties != lookups->stateLookup.end()) {
+            if (properties != lookups->stateLookup->end()) {
                 const auto& pack = properties->second.at(state->properties);
                 color = pack.color;
                 tint = static_cast<TintIndex>(pack.tintIndex);
@@ -710,12 +709,12 @@ namespace xaero {
 
                                 const auto biome = pixel.biome ? getBiome(pixel.biome.value()) : "plains";
 
-                                const auto foundBiome = lookups->biomeLookup.find(biome);
+                                const auto foundBiome = lookups->biomeLookup->find(biome);
                                 BiomeColors biomeColors;
-                                if (foundBiome != lookups->biomeLookup.end()) {
+                                if (foundBiome != lookups->biomeLookup->end()) {
                                     biomeColors = foundBiome->second;
                                 } else {
-                                    biomeColors = lookups->biomeLookup.at("plains");
+                                    biomeColors = lookups->biomeLookup->at("plains");
                                 }
 
                                 auto color = getStateColor(pixel.state, biomeColors, lookups);
