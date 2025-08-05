@@ -1,10 +1,11 @@
 #include "StringUtils.hpp"
 
 std::string_view xaero::stripName(const std::string_view &name) noexcept {
-    if (const auto found = name.find_first_of(':');
-        found != std::string_view::npos) {
+    if (name.length() <= 10) return name;
 
-        return name.substr(found + 1);
+    if (name.at(9) == ':') {
+        return name.substr(10);
     }
+
     return name;
 }

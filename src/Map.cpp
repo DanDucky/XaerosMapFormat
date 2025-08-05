@@ -10,11 +10,9 @@
 #include "xaero/types/RegionImage.hpp"
 #include "xaero/types/Region.hpp"
 #include "xaero/types/LookupTypes.hpp"
-#include "xaero/util/IndexableView.hpp"
 #include "lookups/LegacyCompatibility.hpp"
 #include "util/ByteInputStream.hpp"
 #include "util/ByteOutputStream.hpp"
-#include "util/OptionalOwnerPtr.hpp"
 
 #include <nbt_tags.h>
 
@@ -29,10 +27,6 @@
 #include "util/StringUtils.hpp"
 
 namespace xaero {
-    static const auto AIR_STATE = BlockState{
-        "air",
-        nbt::tag_compound{}
-    };
 
     // so these are entirely internal to this library, that's why they're not exposed
     // mojang doesn't use these same indices and when I read in the blocks I manually set these unless mojang "got them right"
@@ -41,7 +35,8 @@ namespace xaero {
         GRASS = 0,
         FOLIAGE = 1,
         DRY_FOLIAGE = 2,
-        REDSTONE = 3
+        REDSTONE = 3,
+        WATER = 4
     };
 
     enum class ColorType : std::uint8_t { // legacy color type system, not supported by Xaero and not rendered by this
@@ -64,32 +59,17 @@ namespace xaero {
         return stripName(out);
     }
 
-    std::pair<OptionalOwnerPtr<const BlockState>, std::optional<std::pair<RegionImage::Pixel, TintIndex>>> getState(const std::variant<std::monostate, std::int32_t, BlockState, std::shared_ptr<BlockState>, BlockState*>& state, const LookupPack* lookups) {
+    const BlockState* getState(const std::variant<std::monostate, BlockState, std::shared_ptr<BlockState>, const BlockState*>& state) {
         if (std::holds_alternative<std::monostate>(state)) {
-            return {OptionalOwnerPtr(&AIR_STATE, false), std::pair{RegionImage::Pixel{0,0,0,0}, TintIndex::NONE}};
-        } else if (std::holds_alternative<std::int32_t>(state)) {
-            const auto stateID = std::get<std::int32_t>(state);
-            if (stateID >= lookups->stateIDLookupSize) {
-                return {OptionalOwnerPtr(&AIR_STATE, false), std::pair{RegionImage::Pixel{0,0,0,0}, TintIndex::NONE}};
-            } else {
-                if (const auto statePack = lookups->stateIDLookup[stateID];
-                    !statePack) {
-
-                    return {OptionalOwnerPtr(&AIR_STATE, false), std::pair{RegionImage::Pixel{0,0,0,0}, TintIndex::NONE}};
-                } else {
-                    return {OptionalOwnerPtr(&statePack.value().state, false), std::pair{statePack.value().color, static_cast<TintIndex>(statePack.value().tintIndex)}};
-                }
-            }
-        } else {
-            if (std::holds_alternative<BlockState*>(state)) {
-                return {OptionalOwnerPtr<const BlockState>(std::get<BlockState*>(state), false), std::nullopt};
-            } else if (std::holds_alternative<BlockState>(state)) {
-                return {OptionalOwnerPtr<const BlockState>(&std::get<BlockState>(state), false), std::nullopt};
-            } else {
-                return {OptionalOwnerPtr<const BlockState>(std::get<std::shared_ptr<BlockState>>(state).get(), false), std::nullopt};
-            }
+            return getStateFromID(0); // air
         }
-
+        if (std::holds_alternative<const BlockState*>(state)) {
+            return std::get<const BlockState*>(state);
+        }
+        if (std::holds_alternative<BlockState>(state)) {
+            return &std::get<BlockState>(state);
+        }
+        return std::get<std::shared_ptr<BlockState>>(state).get();
     }
 
     Region Map::parseRegion(std::istream &data) {
@@ -187,7 +167,7 @@ namespace xaero {
                             if (isNotGrass) {
                                 if (region.majorVersion == 0) { // old format, state is a state id
                                     const auto state = stream.getNext<int32_t>();
-                                    pixel.state = state;
+                                    pixel.state = getStateFromID(state);
                                 } else {
                                     if (newStatePaletteEntry) {
                                         auto nbtStream = nbt::io::stream_reader(stream.getStream());
@@ -205,7 +185,7 @@ namespace xaero {
                                     }
                                 }
                             } else { // grass
-                                pixel.state = 9 /* snowless grass block */;
+                                pixel.state = getStateFromID(2); // grass block
                             }
 
                             if (!heightInParameters) {
@@ -245,10 +225,10 @@ namespace xaero {
                                     // done with params
 
                                     if (isWater) {
-                                        overlay.state = 86; // default water state
+                                        overlay.state = getStateFromID(9); // default water state
                                     } else {
                                         if (region.majorVersion == 0) {
-                                            overlay.state = stream.getNext<std::int32_t>();
+                                            overlay.state = getStateFromID(stream.getNext<std::int32_t>());
                                         } else {
                                             if (newOverlayStatePaletteEntry) {
                                                 auto nbtStream = nbt::io::stream_reader(stream.getStream());
@@ -312,8 +292,8 @@ namespace xaero {
                                         } else {
                                             const auto biomeName = stream.getNextMUTF(); // mutf is garbage
                                             biome = region.majorVersion < 6 ?
-                                                fixBiome(biomeName) :
-                                                std::move(biomeName);
+                                                fixBiome(stripName(biomeName)) :
+                                                std::move(stripName(biomeName));
                                         }
 
                                         biomePalette.emplace_back(std::make_shared<std::string>(std::move(biome)));
@@ -354,14 +334,14 @@ namespace xaero {
         stream.write<std::uint16_t>(6); // "major version"
         stream.write<std::uint16_t>(8); // "minor version"
 
-        std::vector<OptionalOwnerPtr<const BlockState>> statePalette;
-        auto findStateInPalette = [&statePalette](const OptionalOwnerPtr<const BlockState>& state) -> std::optional<std::size_t> {
-            const auto found = std::ranges::find_if(statePalette.begin(), statePalette.end(), [&state](const OptionalOwnerPtr<const BlockState>& b) -> bool {
-                return *state.pointer == *b.pointer;
+        std::vector<const BlockState*> statePalette;
+        auto findStateInPalette = [&statePalette](const BlockState* state) -> std::optional<std::size_t> {
+            const auto found = std::ranges::find_if(statePalette.begin(), statePalette.end(), [&state](const BlockState* b) -> bool {
+                return *state == *b;
             });
 
             if (found == statePalette.end()) {
-                return {};
+                return std::nullopt;
             }
             return found - statePalette.begin();
         };
@@ -390,7 +370,7 @@ namespace xaero {
                             for (auto& pixel : pixelRow) {
                                 BitWriter<std::uint32_t> parameters;
 
-                                auto [state, _] = getState(pixel.state, lookups);
+                                auto state = getState(pixel.state);
                                 const bool isGrass = state->isName("grass_block");
 
                                 parameters.writeNext(!isGrass, 1);
@@ -461,8 +441,8 @@ namespace xaero {
                                     for (const auto& overlay : pixel.overlays) {
                                         BitWriter<std::uint32_t> overlayParameters;
 
-                                        const auto [overlayState, _] = getState(overlay.state, lookups);
-                                        bool isWater = overlayState->isName("water");
+                                        const auto overlayState = getState(overlay.state);
+                                        const bool isWater = overlayState->isName("water");
 
                                         overlayParameters.writeNext(!isWater, 1);
                                         overlayParameters.writeNext(false, 1); // legacy opacity
@@ -624,38 +604,34 @@ namespace xaero {
 
     // separated so it can be used on both the overlays and the pixels
     RegionImage::Pixel getStateColor(
-        const std::variant<std::monostate, std::int32_t, BlockState, std::shared_ptr<BlockState>, BlockState*>& stateVariant,
+        const std::variant<std::monostate, BlockState, std::shared_ptr<BlockState>, const BlockState*>& stateVariant,
         const BiomeColors& biome,
         const LookupPack* lookups) {
 
         RegionImage::Pixel color;
         TintIndex tint;
-        const auto [state, maybeColor] = getState(stateVariant, lookups);
+        const auto state = getState(stateVariant);
 
-        if (!maybeColor) {
+        if (const auto properties = lookups->stateLookup.find(state->strippedName());
+            properties != lookups->stateLookup.end()) {
 
-            const auto properties = lookups->stateLookup->find(state->strippedName());
-
-            if (properties != lookups->stateLookup->end()) {
-                const auto& pack = properties->second.at(state->properties);
-                color = pack.color;
-                tint = static_cast<TintIndex>(pack.tintIndex);
-            } else {
-                tint = TintIndex::NONE;
-            }
+            const auto& pack = properties->second.at(state->properties);
+            color = pack.color;
+            tint = static_cast<TintIndex>(pack.tintIndex);
         } else {
-            color = maybeColor.value().first;
-            tint = maybeColor.value().second;
+            tint = TintIndex::NONE;
         }
 
         if (tint != TintIndex::NONE) {
-            const auto strippedName = state->strippedName();
-            if (strippedName.contains("redstone")) {
+            if (const auto strippedName = state->strippedName();
+                strippedName.contains("redstone")) {
                 tint = TintIndex::REDSTONE;
             } else if (strippedName == "leaf_litter") {
                 tint = TintIndex::DRY_FOLIAGE;
             } else if (strippedName.contains("leaves") || strippedName == "vine") {
                 tint = TintIndex::FOLIAGE;
+            } else if (strippedName.contains("water")) {
+                tint = TintIndex::WATER;
             }
         }
 
@@ -674,6 +650,9 @@ namespace xaero {
                 break;
             case TintIndex::REDSTONE:
                 tintColor = {231, 6, 0}; // pretty random
+                break;
+            case TintIndex::WATER:
+                tintColor = biome.water;
                 break;
         }
 
@@ -709,12 +688,12 @@ namespace xaero {
 
                                 const auto biome = pixel.biome ? getBiome(pixel.biome.value()) : "plains";
 
-                                const auto foundBiome = lookups->biomeLookup->find(biome);
+                                const auto foundBiome = lookups->biomeLookup.find(biome);
                                 BiomeColors biomeColors;
-                                if (foundBiome != lookups->biomeLookup->end()) {
+                                if (foundBiome != lookups->biomeLookup.end()) {
                                     biomeColors = foundBiome->second;
                                 } else {
-                                    biomeColors = lookups->biomeLookup->at("plains");
+                                    biomeColors = lookups->biomeLookup.at("plains");
                                 }
 
                                 auto color = getStateColor(pixel.state, biomeColors, lookups);

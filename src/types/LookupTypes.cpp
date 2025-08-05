@@ -92,15 +92,3 @@ bool xaero::CompoundCompare::operator()(const nbt::tag_compound &lhs, const nbt:
         return ValueCompare()(a.second, b.second);
     });
 }
-
-std::size_t xaero::NameHash::operator()(const std::string_view &name) const noexcept {
-    return std::hash<std::string_view>{}(stripName(name));
-}
-
-bool xaero::NameEquals::operator()(const std::string_view &a, const std::string_view &b) const noexcept {
-    return stripName(a) == stripName(b);
-}
-
-bool xaero::NameCompare::operator()(const std::string_view &a, const std::string_view &b) const noexcept {
-    return stripName(a).compare(stripName(b)) < 0;
-}

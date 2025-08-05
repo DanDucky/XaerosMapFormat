@@ -4,26 +4,6 @@ bool xaero::Region::TileChunk::Chunk::Pixel::hasOverlays() const {
     return overlays.size() > 0;
 }
 
-bool xaero::Region::TileChunk::Chunk::Pixel::isAir() const {
-    if (std::holds_alternative<std::monostate>(state)) {
-        return true;
-    } else if (std::holds_alternative<std::int32_t>(state)) {
-        return std::get<std::int32_t>(state) == 0;
-    } else if (std::holds_alternative<BlockState>(state)) {
-        const auto name = std::string_view(std::get<BlockState>(state).name);
-        const auto first = name.find_first_of(':');
-        return name.substr(first != std::string_view::npos ? first + 1 : 0) == "air";
-    } else if (std::holds_alternative<BlockState*>(state)) {
-        const auto name = std::string_view(std::get<BlockState*>(state)->name);
-        const auto first = name.find_first_of(':');
-        return name.substr(first != std::string_view::npos ? first + 1 : 0) == "air";
-    } else if (std::holds_alternative<std::shared_ptr<BlockState>>(state)) {
-        const auto name = std::string_view(std::get<std::shared_ptr<BlockState>>(state)->name);
-        const auto first = name.find_first_of(':');
-        return name.substr(first != std::string_view::npos ? first + 1 : 0) == "air";
-    }
-}
-
 xaero::Region::TileChunk::Chunk::Pixel * xaero::Region::TileChunk::Chunk::operator[](int x) {
     return (*columns)[x];
 }

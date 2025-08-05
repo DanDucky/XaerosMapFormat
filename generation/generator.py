@@ -12,10 +12,6 @@ import numpy as np
 NAMESPACE = "xaero"
 STATE_TYPE = "StateLookup"
 STATE_NAME = "defaultStateLookup"
-STATE_ID_TYPE = "DefaultStateIDLookup"
-STATE_ID_ELEMENT_TYPE = "StateIDLookupElement"
-STATE_ID_CHUNK_TYPE = "StateIDLookupChunk"
-STATE_ID_NAME = "defaultStateIDLookup"
 BIOME_TYPE = "BiomeLookup"
 BIOME_NAME = "defaultBiomeLookup"
 
@@ -270,17 +266,6 @@ def generate_colors(blocks: dict, client : Path) -> dict :
             output[state["id"]] = (color, tint_index)
     return output
 
-def generate_header(size : int) -> str :
-    header = f"""#pragma once
-#include <xaero/types/LookupTypes.hpp>
-
-namespace {NAMESPACE} {{
-    {"\n".join([f"extern const {STATE_ID_CHUNK_TYPE} {STATE_ID_NAME}_{i};" for i in range(size)])}
-}}
-    """
-
-    return header
-
 def generate_state_lookup(blocks : dict, colors : dict) -> str :
     output = {}
     for name, data in blocks.items() :
@@ -423,45 +408,14 @@ def generate_lookups(file_names : Path, blocks : dict, colors : dict, biomes : s
             output.insert(i, (i, ()))
 
     output_split = {}
-    # in bits used to represent it
-    chunk_size = 11
-    i = 0
-    for chunk in [output[i:i + pow(2, chunk_size)] for i in range(0, len(output), pow(2, chunk_size))] :
-        source = f"""#include \"xaero/lookups/Private{file_names}.hpp\"
-#include \"xaero/lookups/{file_names}.hpp\"
-#include <nbt_tags.h>
-#include <type_traits>
 
-namespace {NAMESPACE} {{
-const {NAMESPACE}::{STATE_ID_CHUNK_TYPE} {STATE_ID_NAME}_{i} = {{
-{",\n".join([f"{{{{BlockState{{\"{info[0]}\",nbt::tag_compound{{{",".join([f"{{\"{key}\",\"{value}\"}}" for key, value in info[1].items()])}}}}},{{{info[2][0]},{info[2][1]},{info[2][2]},{info[2][3] if len(info[2]) > 3 else 255}}},{info[3]}}}}}" if len(info) > 0 else "{}" for id, info in chunk])}
-}};
-}}
-
-"""
-        if i == 0 : # first file, add size
-            source += f"const std::size_t {NAMESPACE}::{STATE_ID_NAME + "Size"} = {len(output)};"
-        output_split[f"{file_names}_StateID_{i}"] = source
-        i+=1
-
-    source = f"""#include \"xaero/lookups/Private{file_names}.hpp\"
-#include \"xaero/lookups/{file_names}.hpp\"
+    source = f"""#include \"xaero/lookups/{file_names}.hpp\"
 #include \"xaero/types/LookupTypes.hpp\"
 #include <nbt_tags.h>
 
 [[maybe_unused]] const {NAMESPACE}::{STATE_TYPE} {NAMESPACE}::{STATE_NAME} = {{
 {generate_state_lookup(blocks, colors)}
 }};
-
-[[maybe_unused]] const {NAMESPACE}::{STATE_ID_TYPE} {NAMESPACE}::{STATE_ID_NAME} = {{}};
-
-const {NAMESPACE}::{STATE_ID_ELEMENT_TYPE} & {NAMESPACE}::{STATE_ID_TYPE}::operator[](const std::size_t index) const {{
-    static const {NAMESPACE}::{STATE_ID_ELEMENT_TYPE}* chunks[] = {{
-    {",\n".join([f"{NAMESPACE}::{STATE_ID_NAME}_{index}" for index in range(len(output_split))])}
-    }};
-
-    return chunks[index >> {chunk_size}][index & {pow(2, chunk_size) - 1}];
-}}
 
 [[maybe_unused]] const {NAMESPACE}::{BIOME_TYPE} {NAMESPACE}::{BIOME_NAME} = {{
 {biomes}
@@ -487,12 +441,7 @@ def main() :
 
     colors = generate_colors(blocks, Path(args.client))
     state_id_split = generate_lookups(args.file_names, blocks, colors, generate_biome_colors(Path(args.client)))
-    header = generate_header(len(state_id_split) - 1)
     output = Path(args.output_dir)
-    header_path = output / "include" / "xaero" / "lookups" / ("Private" + args.file_names + ".hpp")
-    header_path.parent.mkdir(exist_ok=True, parents=True)
-    with open(header_path, "w") as file :
-        file.write(header)
 
     chunk_output_dir = output / "src" / "lookups"
     chunk_output_dir.mkdir(exist_ok=True, parents=True)

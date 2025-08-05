@@ -7,7 +7,7 @@
 #include <string>
 
 std::string_view xaero::fixBiome(const std::string_view &biome) {
-    static const std::map<std::string_view, std::string_view, NameCompare> lookup {
+    static const std::map<std::string_view, std::string_view> lookup {
         {"badlands_plateau", "badlands"},
         {"bamboo_jungle_hills", "bamboo_jungle"},
         {"birch_forest_hills", "birch_forest"},
@@ -169,4 +169,26 @@ void xaero::convertNBT(std::unique_ptr<nbt::tag_compound> &nbt, const std::int16
             converter->second(nbt);
         }
     }
+}
+
+const xaero::BlockState * xaero::getStateFromID(const std::uint32_t stateID) {
+    std::uint16_t blockID = stateID & 4095;
+
+    if (blockID >= stateIDLookupSize) {
+        blockID = 0;
+    }
+
+    std::uint16_t metaID = stateID >> 12 & 1048575;
+
+    const auto& states = stateIDLookup[blockID];
+
+    if (states.empty()) {
+        return &stateIDLookup[0].front(); // air
+    }
+
+    if (metaID >= states.size()) {
+        return &states.front();
+    }
+
+    return &states[metaID];
 }
