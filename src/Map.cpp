@@ -98,7 +98,7 @@ namespace xaero {
                 is115not114 = stream.getNext<std::uint8_t>() == 1; // idk what this is for tbh
             }
 
-            if (region.majorVersion > 6 || region.minorVersion > 8) {
+            if (region.majorVersion > 7 || region.minorVersion > 8) {
                 // unrecognized version... return unexpected
             }
         }
@@ -174,7 +174,7 @@ namespace xaero {
 
                                         auto nbt = nbtStream.read_compound();
 
-                                        if (region.majorVersion < 6) {
+                                        if (region.majorVersion < 7) {
                                             convertNBT(nbt.second, region.majorVersion); // make it up to date pls !
                                         }
                                         statePalette.emplace_back(std::make_shared<BlockState>(std::move(*nbt.second))); // copy the stupid compound tag because why is that a ptr
@@ -331,7 +331,7 @@ namespace xaero {
     inline void serializeRegionImpl(const Region& region, ByteOutputStream& stream, const LookupPack* lookups) {
         stream.write<std::uint8_t>(255); // has version
 
-        stream.write<std::uint16_t>(6); // "major version"
+        stream.write<std::uint16_t>(7); // "major version"
         stream.write<std::uint16_t>(8); // "minor version"
 
         std::vector<const BlockState*> statePalette;

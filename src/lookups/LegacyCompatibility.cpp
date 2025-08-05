@@ -108,10 +108,10 @@ void xaero::convertNBT(std::unique_ptr<nbt::tag_compound> &nbt, const std::int16
             }},
             {"minecraft:redstone_wire", [](std::unique_ptr<nbt::tag_compound>& tag) {
                 auto& properties = tag->at("Properties").as<nbt::tag_compound>();
-                auto north = properties.at("north").as<nbt::tag_string>().get();
-                auto south = properties.at("south").as<nbt::tag_string>().get();
-                auto east = properties.at("east").as<nbt::tag_string>().get();
-                auto west = properties.at("west").as<nbt::tag_string>().get();
+                auto& north = properties.at("north").as<nbt::tag_string>().get();
+                auto& south = properties.at("south").as<nbt::tag_string>().get();
+                auto& east = properties.at("east").as<nbt::tag_string>().get();
+                auto& west = properties.at("west").as<nbt::tag_string>().get();
 
                 properties.put("north",
                                north.empty() ? (west.empty() && east.empty() ? "side" : "none") : north);
@@ -167,6 +167,22 @@ void xaero::convertNBT(std::unique_ptr<nbt::tag_compound> &nbt, const std::int16
             converter != convert.end()) {
 
             converter->second(nbt);
+        }
+    }
+
+    if (majorVersion < 7) {
+        if (const auto name = nbt->at("Name").as<nbt::tag_string>().get();
+            name == "minecraft:creaking_heart") {
+
+            if (auto& properties = nbt->at("Properties").as<nbt::tag_compound>();
+                properties.size() > 0) {
+
+                if (properties.has_key("active")) {
+                    const auto& active = properties.at("active").as<nbt::tag_string>().get();
+                    properties.erase("active");
+                    properties.insert("creaking_heart_state", active == "true" ? "awake" : "uprooted");
+                }
+            }
         }
     }
 }

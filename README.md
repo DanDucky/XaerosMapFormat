@@ -44,7 +44,8 @@ All of these dependencies are managed and downloaded by CPM in the provided CMak
 
 ## Versioning
 
-tldr: Xaero's Map format version `6.8`
+tldr: Xaero's Map format version `7.8`
 
 This is a little bit difficult because the versioning is dependent on an internal Xaero's Map format version number. 
-Currently, this supports reading from all versions up to 6.8 and writes version 6.8 files.
+Currently, this supports reading from all versions up to 7.8 and writes version 7.8 files.
+Also the minor version number appears to actually mean legacy version number, with new versions only updating the major version.
