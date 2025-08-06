@@ -8,6 +8,7 @@ option(XAERO_BUILD_EXAMPLES "builds example programs" ON)
 
 add_library(XaerosMapFormat
         src/Map.cpp
+        src/RegionTools.cpp
         src/util/ByteInputStream.cpp
         src/util/ByteOutputStream.cpp
         src/util/StringUtils.cpp
@@ -19,6 +20,9 @@ add_library(XaerosMapFormat
         src/lookups/LegacyCompatibility.hpp
         src/lookups/BlockLookups.cpp
 )
+
+target_compile_definitions(XaerosMapFormat PUBLIC XAERO_REGION_VERSION_MAJOR=7)
+target_compile_definitions(XaerosMapFormat PUBLIC XAERO_REGION_VERSION_MINOR=8)
 
 file (DOWNLOAD
         https://github.com/cpm-cmake/CPM.cmake/releases/latest/download/get_cpm.cmake

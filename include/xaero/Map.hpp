@@ -1,72 +1,22 @@
 #pragma once
 #include <filesystem>
-#include <list>
-#include <span>
 
-#include "lookups/BlockLookups.hpp"
 #include "types/LookupTypes.hpp"
 #include "types/Region.hpp"
+#include "util/PairHash.hpp"
 
 namespace xaero {
     struct RegionImage;
-
-    class Map {
+    class Map : public std::unordered_map<std::pair<std::int32_t, std::int32_t>, Region, PairHash> {
+    private:
+        const LookupPack* lookups;
     public:
-        /**
-         * @param file path to xaero zip file, please do not unzip!
-         * @return parsed region
-         */
-        static Region parseRegion(const std::filesystem::path& file);
-        /**
-         * @param data unzipped data at the entry "region.xaero" in a xaero region file
-         * @return parsed region
-         */
-        static Region parseRegion(const std::span<char>& data);
-        /**
-         * @param data data stream to the entry "region.xaero" in a xaero region file
-         * @return parsed region
-         */
-        static Region parseRegion(std::istream& data);
 
-        static std::string serializeRegion(const Region& region, const LookupPack* lookups
-#ifdef XAERO_DEFAULT_LOOKUPS
-        = &defaultLookupPack
-#endif
-        );
-        static std::string packRegion(const std::string_view &serialized);
-        static bool writeRegion(const Region& region, const std::filesystem::path& path, const LookupPack* lookups
-#ifdef XAERO_DEFAULT_LOOKUPS
-        = &defaultLookupPack
-#endif
-        );
+        Map();
+        explicit Map(const LookupPack* lookups);
 
-        static bool writeRegion(const std::string_view &serialized, const std::filesystem::path &path);
-
-        /**
-         * @param region region to render
-         * @param lookups
-         * @return rendered region
-         */
-        static RegionImage generateImage(const Region& region, const LookupPack *lookups
-#ifdef XAERO_DEFAULT_LOOKUPS
-        = &defaultLookupPack
-#endif
-        );
-        /**
-         * @param file path to xaero zip file, please do not unzip!
-         * @return rendered region
-         */
-        static RegionImage generateImage(const std::filesystem::path& file);
-        /**
-         * @param data unzipped data at the entry "region.xaero" in a xaero region file
-         * @return rendered region
-         */
-        static RegionImage generateImage(const std::string_view& data);
-        /**
-         * @param data data stream to the entry "region.xaero" in a xaero region file
-         * @return rendered region
-         */
-        static RegionImage generateImage(std::istream& data);
+        void setLookups(const LookupPack* lookups);
+        [[nodiscard]] const LookupPack* getLookups() const;
 
         enum class MergeType : std::uint8_t {
             OVERRIDE,
@@ -74,30 +24,106 @@ namespace xaero {
             BELOW
         };
 
-        void addRegion(const std::filesystem::path& file, MergeType merge=MergeType::OVERRIDE);
-        void addRegion(const std::string_view& data, MergeType merge=MergeType::OVERRIDE);
-        void addRegion(std::istream& data, MergeType merge=MergeType::OVERRIDE);
-        void addRegion(const Region region, MergeType merge=MergeType::OVERRIDE);
+        // coordinates can be defaulted only if the file name contains the coordinates like in the default xaero's map saves
+        void addRegion(const std::filesystem::path& file,
+                std::int32_t regionX = std::numeric_limits<std::int32_t>::min(),
+                std::int32_t regionZ = std::numeric_limits<std::int32_t>::min(),
+                MergeType merge=MergeType::OVERRIDE);
+        void addRegion(const std::string_view& data, std::int32_t regionX, std::int32_t regionZ, MergeType merge=MergeType::OVERRIDE);
+        void addRegion(std::istream& data, std::int32_t regionX, std::int32_t regionZ, MergeType merge=MergeType::OVERRIDE);
 
-        void addPixel(const Region::TileChunk::Chunk::Pixel pixel, std::int32_t x, std::int32_t z);
-        void addChunk(const Region::TileChunk::Chunk chunk, std::int32_t chunkX, std::int32_t chunkZ);
+        // so this WILL modify the region passed if MergeType::BELOW, so just don't use the region after adding it :)
+        template<typename T> // for forwarding business
+        void addRegion(T&& region, std::int32_t regionX, std::int32_t regionZ, MergeType merge=MergeType::OVERRIDE);
 
-        void clearRegions();
-        void removeRegion(std::int32_t x, std::int32_t z);
-        void removeChunk(std::int32_t x, std::int32_t z);
+        template<typename T>
+        void addPixel(T&& pixel, std::int32_t x, std::int32_t z);
+        template<typename T>
+        void addChunk(T&& chunk, std::int32_t chunkX, std::int32_t chunkZ);
 
-        [[nodiscard]] RegionImage generateImage(std::int32_t x, std::int32_t z) const;
-        [[nodiscard]] std::list<RegionImage> generateImages() const;
+        [[nodiscard]] std::optional<RegionImage> generateImage(std::int32_t regionX, std::int32_t regionZ) const;
+        [[nodiscard]] std::vector<std::pair<std::pair<std::int32_t, std::int32_t>, RegionImage>> generateImages() const;
 
-        [[nodiscard]] const Region* getRegion(std::int32_t x, std::int32_t z) const;
-        [[nodiscard]] Region* getRegion(std::int32_t x, std::int32_t z);
-
-        [[nodiscard]] const Region::TileChunk::Chunk* getChunk(std::int32_t x, std::int32_t z) const;
-        [[nodiscard]] Region::TileChunk::Chunk* getChunk(std::int32_t x, std::int32_t z);
+        [[nodiscard]] const Region::TileChunk::Chunk* getChunk(std::int32_t chunkX, std::int32_t chunkZ) const;
+        [[nodiscard]] Region::TileChunk::Chunk* getChunk(std::int32_t chunkX, std::int32_t chunkZ);
 
         [[nodiscard]] const Region::TileChunk::Chunk::Pixel* getPixel(std::int32_t x, std::int32_t z) const;
         [[nodiscard]] Region::TileChunk::Chunk::Pixel* getPixel(std::int32_t x, std::int32_t z);
 
-        [[nodiscard]] std::list<Region> getParsedRegions() const;
+        bool writeRegion(std::int32_t regionX, std::int32_t regionZ, const std::filesystem::path& path) const;
+        [[nodiscard]] std::string getSerialized(std::int32_t regionX, std::int32_t regionZ) const;
+
+        bool writeRegions(const std::filesystem::path& rootPath) const;
+        [[nodiscard]] std::vector<std::pair<std::pair<std::int32_t, std::int32_t>, std::string>> getSerialized() const;
     };
+
+    template<typename T>
+    void Map::addRegion(T &&region, const std::int32_t regionX, const std::int32_t regionZ, const MergeType merge) {
+        const auto contained = find({regionX, regionZ});
+
+        if (contained == end()) {
+            emplace(std::pair{regionX, regionZ}, std::forward<T>(region));
+            return;
+        }
+
+        switch (merge) {
+            case MergeType::OVERRIDE:
+                contained->second = std::forward<T>(region);
+                break;
+            case MergeType::ABOVE:
+                contained->second.mergeMove(region);
+                break;
+            case MergeType::BELOW:
+                region.mergeMove(contained->second);
+                contained->second = std::forward<T>(region);
+                break;
+        }
+    }
+
+    template<typename T>
+    void Map::addPixel(T &&pixel, const std::int32_t x, const std::int32_t z) {
+        std::int32_t regionX = x >> 9;
+        std::int32_t regionZ = z >> 9;
+
+        if (const auto contained = find({regionX, regionZ});
+            contained == end()) {
+            Region region;
+
+            auto& tileChunk = region[x >> 6 & 7][z >> 6 & 7];
+            tileChunk.allocateChunks();
+            auto& chunk = tileChunk[x >> 4 & 3][z >> 4 & 3];
+            chunk.allocateColumns();
+            chunk[x & 15][z & 15] = std::forward<T>(pixel);
+
+            emplace(std::pair{regionX, regionZ}, std::move(region));
+        } else {
+            auto& tileChunk = contained->second[x >> 6 & 7][z >> 6 & 7];
+            tileChunk.allocateChunks();
+            auto& chunk = tileChunk[x >> 4 & 3][z >> 4 & 3];
+            chunk.allocateColumns();
+
+            chunk[x & 15][z & 15] = std::forward<T>(pixel);
+        }
+    }
+
+    template<typename T>
+    void Map::addChunk(T &&chunk, const std::int32_t chunkX, const std::int32_t chunkZ) {
+        std::int32_t regionX = chunkX >> 5;
+        std::int32_t regionZ = chunkZ >> 5;
+
+        if (const auto contained = find({regionX, regionZ});
+            contained == end()) {
+            Region region;
+
+            auto& tileChunk = region[chunkX >> 2 & 7][chunkZ >> 2 & 7];
+            tileChunk.allocateChunks();
+            tileChunk[chunkX & 3][chunkZ & 3] = std::forward<T>(chunk);
+
+            emplace(std::pair{regionX, regionZ}, std::move(region));
+        } else {
+            auto& tileChunk = contained->second[chunkX >> 2 & 7][chunkZ >> 2 & 7];
+            tileChunk.allocateChunks();
+            tileChunk[chunkX & 3][chunkZ & 3] = std::forward<T>(chunk);
+        }
+    }
 }

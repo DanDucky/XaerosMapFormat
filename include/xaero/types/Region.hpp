@@ -13,6 +13,11 @@ namespace xaero {
     struct Region {
         struct TileChunk {
             struct Chunk {
+                Chunk(const Chunk &other);
+                Chunk(Chunk &&other) noexcept;
+                Chunk & operator=(const Chunk &other);
+                Chunk & operator=(Chunk &&other) noexcept;
+
                 struct Pixel {
                     std::uint8_t light;
                     std::int16_t height;
@@ -32,6 +37,7 @@ namespace xaero {
 
                     [[nodiscard]] bool hasOverlays() const;
                 };
+
                 Pixel (*columns)[16][16] = nullptr;
 
                 std::int32_t caveStart=0;
@@ -46,6 +52,7 @@ namespace xaero {
                 [[nodiscard]] explicit operator bool() const;
 
                 void allocateColumns();
+                void deallocateColumns() noexcept;
 
                 Chunk();
 
@@ -59,8 +66,16 @@ namespace xaero {
             [[nodiscard]] explicit operator bool() const;
 
             void allocateChunks();
+            void deallocateChunks() noexcept;
+
+            TileChunk()=default;
 
             ~TileChunk();
+
+            TileChunk(const TileChunk& other);
+            TileChunk(TileChunk&& other) noexcept;
+            TileChunk& operator=(const TileChunk& other);
+            TileChunk& operator=(TileChunk&& other) noexcept;
         };
         TileChunk tileChunks[8][8];
 
@@ -71,6 +86,9 @@ namespace xaero {
         [[nodiscard]] TileChunk::Chunk::Pixel* operator[](std::uint16_t relX, std::uint16_t relZ);
 
         [[nodiscard]] bool hasPixel(std::uint16_t relX, std::uint16_t relZ) const;
+
+        void mergeMove(Region& other);
+        void mergeCopy(const Region& other);
 
         Region();
 

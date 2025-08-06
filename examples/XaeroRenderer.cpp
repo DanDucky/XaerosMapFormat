@@ -3,14 +3,16 @@
 #endif
 
 #include <args.hxx>
-#include <xaero/Map.hpp>
+
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
+
+#include "xaero/RegionTools.hpp"
 
 xaero::RegionImage getImage (const std::filesystem::path& data) {
     std::cout << "Getting: " << data.string() << "\n";
 
-    return xaero::Map::generateImage(xaero::Map::parseRegion(data), &xaero::defaultLookupPack);
+    return xaero::generateImage(data);
 }
 
 void writeImage(const xaero::RegionImage& image, const std::filesystem::path& path) {
