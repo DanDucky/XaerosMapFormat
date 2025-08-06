@@ -7,9 +7,9 @@ xaero::Region::TileChunk::Chunk::Chunk(const Chunk &other) {
     caveStart = other.caveStart;
     chunkInterpretationVersion = other.chunkInterpretationVersion;
 
-    deallocateColumns();
-
-    if (!other.isPopulated()) return;
+    if (!other.isPopulated()) {
+        return;
+    }
 
     allocateColumns();
 
@@ -35,9 +35,10 @@ xaero::Region::TileChunk::Chunk & xaero::Region::TileChunk::Chunk::operator=(con
     caveStart = other.caveStart;
     chunkInterpretationVersion = other.chunkInterpretationVersion;
 
-    deallocateColumns();
-
-    if (!other.isPopulated()) return *this;
+    if (!other.isPopulated()) {
+        deallocateColumns();
+        return *this;
+    }
 
     allocateColumns();
 
@@ -52,6 +53,8 @@ xaero::Region::TileChunk::Chunk & xaero::Region::TileChunk::Chunk::operator=(con
 
 xaero::Region::TileChunk::Chunk & xaero::Region::TileChunk::Chunk::operator=(Chunk &&other) noexcept {
     if (this == &other) return *this;
+
+    deallocateColumns();
 
     caveDepth = other.caveDepth;
     caveStart = other.caveStart;
@@ -130,7 +133,9 @@ xaero::Region::TileChunk::~TileChunk() {
 }
 
 xaero::Region::TileChunk::TileChunk(const TileChunk &other) {
-    if (!other.isPopulated()) return;
+    if (!other.isPopulated()) {
+        return;
+    }
 
     allocateChunks();
 
@@ -150,9 +155,10 @@ xaero::Region::TileChunk::TileChunk(TileChunk &&other) noexcept {
 xaero::Region::TileChunk & xaero::Region::TileChunk::operator=(const TileChunk &other) {
     if (this == &other) return *this;
 
-    deallocateChunks();
-
-    if (!other.isPopulated()) return *this;
+    if (!other.isPopulated()) {
+        deallocateChunks();
+        return *this;
+    }
 
     allocateChunks();
 

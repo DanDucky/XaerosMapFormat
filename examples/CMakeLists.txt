@@ -16,6 +16,6 @@ target_include_directories(stb INTERFACE ${stb_SOURCE_DIR})
 
 if (XAERO_GENERATE_RESOURCES)
     message(STATUS "Configuring XaeroRenderer")
-    add_executable(XaeroRenderer XaeroRenderer.cpp)
+    add_executable(XaeroRenderer ${CMAKE_CURRENT_SOURCE_DIR}/XaeroRenderer.cpp)
     target_link_libraries(XaeroRenderer PRIVATE taywee::args stb XaerosMapFormat)
 endif ()

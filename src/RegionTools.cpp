@@ -475,7 +475,7 @@ namespace xaero {
 
                                                 nbtWriter.write_payload(state->getNBT());
 
-                                                statePalette.push_back(std::move(state));
+                                                statePalette.push_back(state);
                                             }
                                         }
                                     }

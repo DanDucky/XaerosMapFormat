@@ -7,18 +7,18 @@ option(XAERO_GENERATE_RESOURCES "generates minecraft lookup tables for colors an
 option(XAERO_BUILD_EXAMPLES "builds example programs" ON)
 
 add_library(XaerosMapFormat
-        src/Map.cpp
-        src/RegionTools.cpp
-        src/util/ByteInputStream.cpp
-        src/util/ByteOutputStream.cpp
-        src/util/StringUtils.cpp
-        src/types/RegionImage.cpp
-        src/types/Region.cpp
-        src/types/LookupTypes.cpp
-        src/types/BlockState.cpp
-        src/lookups/LegacyCompatibility.cpp
-        src/lookups/LegacyCompatibility.hpp
-        src/lookups/BlockLookups.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Map.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/RegionTools.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/util/ByteInputStream.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/util/ByteOutputStream.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/util/StringUtils.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/types/RegionImage.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/types/Region.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/types/LookupTypes.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/types/BlockState.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/lookups/LegacyCompatibility.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/lookups/LegacyCompatibility.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/lookups/BlockLookups.cpp
 )
 
 target_compile_definitions(XaerosMapFormat PUBLIC XAERO_REGION_VERSION_MAJOR=7)
@@ -26,10 +26,10 @@ target_compile_definitions(XaerosMapFormat PUBLIC XAERO_REGION_VERSION_MINOR=8)
 
 file (DOWNLOAD
         https://github.com/cpm-cmake/CPM.cmake/releases/latest/download/get_cpm.cmake
-        ${CMAKE_SOURCE_DIR}/external/cmake/get_cpm.cmake
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/cmake/get_cpm.cmake
 )
 
-include(external/cmake/get_cpm.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/external/cmake/get_cpm.cmake)
 
 CPMAddPackage(
         NAME minizip-ng
@@ -61,14 +61,14 @@ CPMAddPackage(
             "NBT_BUILD_TESTS OFF"
 )
 
-set(WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/XaerosMapFormat")
+set(WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/XaerosMapFormat")
 
 set(STATE_ID_LOOKUP "${WORKING_DIRECTORY}/legacy/src/lookups/StateIDLookup.cpp")
 
 if (NOT EXISTS ${STATE_ID_LOOKUP})
     message(STATUS "Generating legacy lookups...")
 
-    include(cmake/ByteInputUtils.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ByteInputUtils.cmake)
 
     set(MOD_JAR "${WORKING_DIRECTORY}/mod.jar")
     set(MOD_EXTRACTED "${WORKING_DIRECTORY}/mod_extracted")
@@ -194,8 +194,8 @@ endif ()
 
 add_library(XaerosLegacy OBJECT ${STATE_ID_LOOKUP})
 target_link_libraries(XaerosLegacy PRIVATE nbt++)
-target_include_directories(XaerosLegacy PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_include_directories(XaerosLegacy PRIVATE include)
+target_include_directories(XaerosLegacy PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(XaerosLegacy PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(XaerosMapFormat PRIVATE XaerosLegacy) # legacy lookups
 
 if (XAERO_GENERATE_RESOURCES)
@@ -342,12 +342,12 @@ if (XAERO_GENERATE_RESOURCES)
     endif()
 
     configure_file(
-            ${CMAKE_SOURCE_DIR}/generation/generator.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/generation/generator.py
             ${WORKING_DIRECTORY}/generator.py.stamp
             COPYONLY
     )
 
-    file(SHA256 ${CMAKE_SOURCE_DIR}/generation/generator.py CURRENT_HASH)
+    file(SHA256 ${CMAKE_CURRENT_SOURCE_DIR}/generation/generator.py CURRENT_HASH)
     set(REQUIRES_GENERATION OFF)
 
     if (NOT EXISTS ${WORKING_DIRECTORY}/GeneratorHash.txt)
@@ -369,7 +369,7 @@ if (XAERO_GENERATE_RESOURCES)
 
         execute_process(
                 COMMAND
-                ${VENV_PYTHON} ${CMAKE_SOURCE_DIR}/generation/generator.py
+                ${VENV_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/generation/generator.py
                 --client ${CLIENT_JAR_EXTRACTED}
                 --reports ${WORKING_DIRECTORY}/generated/reports
                 --output_dir ${WORKING_DIRECTORY}/generated
@@ -389,7 +389,7 @@ if (XAERO_GENERATE_RESOURCES)
     target_link_libraries(XaerosLookups PRIVATE nbt++)
     target_include_directories(XaerosLookups PRIVATE ${WORKING_DIRECTORY}/generated/include)
     target_compile_definitions(XaerosLookups PUBLIC XAERO_DEFAULT_LOOKUPS=1)
-    target_include_directories(XaerosLookups PUBLIC include)
+    target_include_directories(XaerosLookups PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
     target_link_libraries(XaerosMapFormat PUBLIC XaerosLookups)
 endif ()
@@ -399,8 +399,8 @@ target_link_libraries(XaerosMapFormat PRIVATE ztd::text minizip)
 
 set_target_properties(XaerosMapFormat PROPERTIES VERSION ${PROJECT_VERSION})
 
-target_include_directories(XaerosMapFormat PUBLIC include)
-target_include_directories(XaerosMapFormat PRIVATE src ${minizip-ng_SOURCE_DIR})
+target_include_directories(XaerosMapFormat PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(XaerosMapFormat PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${minizip-ng_SOURCE_DIR})
 
 if (XAERO_BUILD_TESTS)
     CPMAddPackage("gh:catchorg/Catch2@3.4.0")
@@ -408,7 +408,7 @@ if (XAERO_BUILD_TESTS)
     enable_testing()
 
     add_executable(tests
-            tests/test.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/test.cpp
     )
 
     target_link_libraries(tests PRIVATE Catch2::Catch2WithMain XaerosMapFormat)
@@ -419,7 +419,7 @@ if (XAERO_BUILD_TESTS)
 endif ()
 
 if (XAERO_BUILD_EXAMPLES)
-    add_subdirectory(examples)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/examples)
 endif ()
 
 install(TARGETS XaerosMapFormat
