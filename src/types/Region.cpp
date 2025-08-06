@@ -82,10 +82,10 @@ const xaero::Region::TileChunk::Chunk::Pixel* xaero::Region::operator[
     return &chunk[relX & 15][relZ & 15];
 }
 
-xaero::Region::TileChunk::Chunk::Pixel * xaero::Region::operator[](std::uint16_t relX, std::uint16_t relZ) {
+xaero::Region::TileChunk::Chunk::Pixel * xaero::Region::operator[](const std::uint16_t relX, const std::uint16_t relZ) {
     if (relX >= 521 || relZ >= 512) return nullptr;
 
-    auto& tileChunk = tileChunks[relX >> 7][relZ >> 7];
+    auto& tileChunk = tileChunks[relX >> 6][relZ >> 6];
 
     if (!tileChunk.isPopulated()) return nullptr;
 

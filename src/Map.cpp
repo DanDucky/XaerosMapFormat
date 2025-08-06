@@ -112,7 +112,9 @@ namespace xaero {
                 break;
             }
 
-            Region::TileChunk& tile = region[coordinates.getNextBits(4)][coordinates.getNextBits(4)];
+            const std::uint8_t tileZ = coordinates.getNextBits(4);
+            const std::uint8_t tileX = coordinates.getNextBits(4);
+            Region::TileChunk& tile = region[tileX][tileZ];
             tile.allocateChunks();
             for (auto& chunkRow : *tile.chunks) {
                 for (auto& chunk : chunkRow) {
@@ -682,8 +684,8 @@ namespace xaero {
                         if (!chunk.isPopulated()) continue;
                         for (std::uint8_t pixelX = 0; pixelX < 16; pixelX++) {
                             for (std::uint8_t pixelZ = 0; pixelZ < 16; pixelZ++) {
-                                const std::uint16_t x = pixelX | chunkX << 4 | tileChunkZ << 6;
-                                const std::uint16_t z = pixelZ | chunkZ << 4 | tileChunkX << 6;
+                                const std::uint16_t x = pixelX | chunkX << 4 | tileChunkX << 6;
+                                const std::uint16_t z = pixelZ | chunkZ << 4 | tileChunkZ << 6;
                                 const auto& pixel = chunk[pixelX][pixelZ];
 
                                 const auto biome = pixel.biome ? getBiome(pixel.biome.value()) : "plains";
@@ -698,7 +700,7 @@ namespace xaero {
 
                                 auto color = getStateColor(pixel.state, biomeColors, lookups);
 
-                                output[x][z] = color;
+                                output[z][x] = color;
 
                                 if (pixel.hasOverlays()) {
                                     for (const auto& overlay : pixel.overlays) {

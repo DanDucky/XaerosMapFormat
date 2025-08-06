@@ -106,9 +106,7 @@ if (NOT EXISTS ${STATE_ID_LOOKUP})
 
         math(EXPR SKIPPED "${BLOCK_ID} - (${LAST_ID} + 1)")
 
-        set(LAST_ID ${BLOCK_ID})
-
-        if ((NOT "${META_INFO}" STREQUAL "") AND META_ID EQUAL 0) # push last meta_info into state_info
+        if ((NOT "${META_INFO}" STREQUAL "") AND NOT ${LAST_ID} EQUAL ${BLOCK_ID}) # push last meta_info into state_info
             list(JOIN META_INFO ",\n" META_INFO_JOINED)
             set(META_INFO "")
             list(APPEND STATE_INFO "{${META_INFO_JOINED}}")
@@ -119,6 +117,8 @@ if (NOT EXISTS ${STATE_ID_LOOKUP})
                 list(APPEND STATE_INFO "${PADDING}")
             endif ()
         endif ()
+
+        set(LAST_ID ${BLOCK_ID})
 
         math(EXPR POSITION "${POSITION} + 3") # skip over initial tag
 

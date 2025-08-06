@@ -21,12 +21,12 @@ namespace xaero {
                     // the rationale for this being optional instead of having a std::monostate is that xaero "officially" might not have a biome, but it ALWAYS has a state
 
                     std::optional<std::variant<std::shared_ptr<std::string>, std::string, std::string_view>> biome; // biome ids are so unsupported that I can't even add them here :(
-                    std::variant<std::monostate, BlockState, std::shared_ptr<BlockState>, const BlockState* /* external state management */> state; // keeping support for ids because I hate nbt
+                    std::variant<std::monostate, BlockState, std::shared_ptr<BlockState>, const BlockState*> state;
 
                     struct Overlay {
                         std::uint8_t light;
                         std::optional<std::int32_t> opacity;
-                        std::variant<std::monostate, BlockState, std::shared_ptr<BlockState>, const BlockState* /* external state management */> state; // keeping support for ids because I hate nbt
+                        std::variant<std::monostate, BlockState, std::shared_ptr<BlockState>, const BlockState*> state;
                     };
                     std::vector<Overlay> overlays;
 

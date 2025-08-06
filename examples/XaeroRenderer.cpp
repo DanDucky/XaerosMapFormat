@@ -47,10 +47,6 @@ int main(int argc, char** argv) {
 
     const std::filesystem::path outputRoot(*output);
 
-    xaero::RegionImage image;
-    image[0][0] = {255, 0,255, 255};
-    writeImage(image, outputRoot / "sample.png");
-
     if (const std::filesystem::path input(*files);
         is_directory(input)) {
         for (const auto& file : std::filesystem::directory_iterator(input)) {

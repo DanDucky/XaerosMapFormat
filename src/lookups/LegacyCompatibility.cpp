@@ -194,7 +194,7 @@ const xaero::BlockState * xaero::getStateFromID(const std::uint32_t stateID) {
         blockID = 0;
     }
 
-    std::uint16_t metaID = stateID >> 12 & 1048575;
+    const std::uint32_t metaID = stateID >> 12 & 1048575;
 
     const auto& states = stateIDLookup[blockID];
 
