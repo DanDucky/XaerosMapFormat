@@ -3,14 +3,15 @@
 #include "xaero/RegionTools.hpp"
 
 #include <format>
+#include <ranges>
 
 xaero::Map::Map() : unordered_map(), lookups(
 #ifdef XAERO_DEFAULT_LOOKUPS
-&defaultLookupPack
+                        &defaultLookupPack
 #else
 nullptr
 #endif
-    ) {
+                    ) {
 }
 
 xaero::Map::Map(const LookupPack *lookups) : unordered_map(), lookups(lookups) {
@@ -25,9 +26,15 @@ const xaero::LookupPack * xaero::Map::getLookups() const {
     return lookups;
 }
 
-void xaero::Map::addRegion(const std::filesystem::path &file, const std::int32_t regionX, const std::int32_t regionZ,
+void xaero::Map::addRegion(const std::filesystem::path &file, std::int32_t regionX, std::int32_t regionZ,
                            const MergeType merge) {
+    if (regionX == std::numeric_limits<std::int32_t>::min() || regionZ == std::numeric_limits<std::int32_t>::min()) {
+        const auto stem = file.stem().string();
+        const auto split = stem.find_first_of('_');
 
+        std::from_chars(stem.data(), stem.data() + split, regionX);
+        std::from_chars(stem.data() + split + 1, stem.data() + stem.size(), regionZ);
+    }
     addRegion(parseRegion(file), regionX, regionZ, merge);
 }
 
