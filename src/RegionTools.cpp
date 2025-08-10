@@ -72,6 +72,41 @@ namespace xaero {
         return std::get<std::shared_ptr<BlockState>>(state).get();
     }
 
+    inline const nbt::tag_compound* getFullProperties(const BlockState& state, const LookupPack* lookups) {
+        const auto containedBlock = lookups->stateLookup.find(state.strippedName());
+
+        if (containedBlock == lookups->stateLookup.end()) return &stateIDLookup[0].front().properties; // return air if block doesn't exist
+
+        const auto containedProperties = containedBlock->second.find(state.properties);
+
+        if (containedProperties == containedBlock->second.end()) return &containedBlock->second.begin()->first; // return a properties of the correct block if specific properties are invalid
+
+        return &containedProperties->first;
+    }
+
+    inline void writeNBT(ByteOutputStream& stream, const BlockState* state, const LookupPack* lookups) {
+        nbt::io::stream_writer nbtWriter(stream.getStream());
+
+        // I write this manually to avoid copying nbt::tag_compounds as much as possible
+
+        const nbt::tag_compound* const properties = lookups ?
+            getFullProperties(*state, lookups) :
+            &state->properties;
+
+        nbtWriter.write_type(nbt::tag_type::Compound);
+        stream.write<std::uint16_t>(0);
+        nbtWriter.write_type(nbt::tag_type::String);
+        nbtWriter.write_string("Name");
+        nbtWriter.write_string(state->taggedName());
+
+        if (properties->size() > 0) {
+            nbtWriter.write_type(nbt::tag_type::Compound);
+            nbtWriter.write_string("Properties");
+            nbtWriter.write_payload(*properties);
+        }
+        nbtWriter.write_type(nbt::tag_type::End);
+    }
+
     Region parseRegion(std::istream &data) {
         ByteInputStream stream(data);
         Region region;
@@ -330,7 +365,7 @@ namespace xaero {
         return region;
     }
 
-    inline void serializeRegionImpl(const Region& region, ByteOutputStream& stream) {
+    inline void serializeRegionImpl(const Region& region, ByteOutputStream& stream, const LookupPack* lookups) {
         stream.write<std::uint8_t>(255); // has version
 
         stream.write<std::uint16_t>(XAERO_REGION_VERSION_MAJOR); // "major version"
@@ -425,11 +460,9 @@ namespace xaero {
                                     if (stateInPalette) {
                                         stream.write<std::uint32_t>(statePaletteIndex);
                                     } else {
-                                        nbt::io::stream_writer nbtWriter(stream.getStream());
+                                        writeNBT(stream, state, lookups);
 
-                                        nbtWriter.write_tag("", state->getNBT()); // for some reason needs an empty key...
-
-                                        statePalette.push_back(std::move(state));
+                                        statePalette.push_back(state);
                                     }
                                 }
 
@@ -471,9 +504,7 @@ namespace xaero {
                                             if (overlayStateInPalette) {
                                                 stream.write<std::uint32_t>(overlayStatePaletteIndex);
                                             } else {
-                                                nbt::io::stream_writer nbtWriter(stream.getStream());
-
-                                                nbtWriter.write_payload(state->getNBT());
+                                                writeNBT(stream, state, lookups);
 
                                                 statePalette.push_back(state);
                                             }
@@ -504,10 +535,10 @@ namespace xaero {
     }
 
 
-    std::string serializeRegion(const Region &region) {
+    std::string serializeRegion(const Region &region, const LookupPack *lookups) {
         auto stringStream = std::ostringstream();
         ByteOutputStream stream(stringStream);
-        serializeRegionImpl(region, stream);
+        serializeRegionImpl(region, stream, lookups);
         return stringStream.str();
     }
 
@@ -600,8 +631,8 @@ namespace xaero {
         return error == MZ_OK;
     }
 
-    bool writeRegion(const Region &region, const std::filesystem::path &path) {
-        return writeRegion(serializeRegion(region), path);
+    bool writeRegion(const Region &region, const std::filesystem::path &path, const LookupPack *lookups) {
+        return writeRegion(serializeRegion(region, lookups), path);
     }
 
     inline float getBrightnessMultiplier (const std::uint8_t min, const std::uint8_t light, const std::uint8_t sun=15) {

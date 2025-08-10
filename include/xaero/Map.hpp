@@ -33,13 +33,10 @@ namespace xaero {
         void addRegion(std::istream& data, std::int32_t regionX, std::int32_t regionZ, MergeType merge=MergeType::OVERRIDE);
 
         // so this WILL modify the region passed if MergeType::BELOW, so just don't use the region after adding it :)
-        template<typename T> // for forwarding business
-        void addRegion(T&& region, std::int32_t regionX, std::int32_t regionZ, MergeType merge=MergeType::OVERRIDE);
+        void addRegion(Region&& region, std::int32_t regionX, std::int32_t regionZ, MergeType merge=MergeType::OVERRIDE);
 
-        template<typename T>
-        void addPixel(T&& pixel, std::int32_t x, std::int32_t z);
-        template<typename T>
-        void addChunk(T&& chunk, std::int32_t chunkX, std::int32_t chunkZ);
+        void addPixel(Region::TileChunk::Chunk::Pixel&& pixel, std::int32_t x, std::int32_t z);
+        void addChunk(Region::TileChunk::Chunk&& chunk, std::int32_t chunkX, std::int32_t chunkZ);
 
         [[nodiscard]] std::optional<RegionImage> generateImage(std::int32_t regionX, std::int32_t regionZ) const;
         [[nodiscard]] std::vector<std::pair<std::pair<std::int32_t, std::int32_t>, RegionImage>> generateImages() const;
@@ -56,74 +53,4 @@ namespace xaero {
         bool writeRegions(const std::filesystem::path& rootPath) const;
         [[nodiscard]] std::vector<std::pair<std::pair<std::int32_t, std::int32_t>, std::string>> getSerialized() const;
     };
-
-    template<typename T>
-    void Map::addRegion(T &&region, const std::int32_t regionX, const std::int32_t regionZ, const MergeType merge) {
-        const auto contained = find({regionX, regionZ});
-
-        if (contained == end()) {
-            emplace(std::pair{regionX, regionZ}, std::forward<T>(region));
-            return;
-        }
-
-        switch (merge) {
-            case MergeType::OVERRIDE:
-                contained->second = std::forward<T>(region);
-                break;
-            case MergeType::ABOVE:
-                contained->second.mergeMove(region);
-                break;
-            case MergeType::BELOW:
-                region.mergeMove(contained->second);
-                contained->second = std::forward<T>(region);
-                break;
-        }
-    }
-
-    template<typename T>
-    void Map::addPixel(T &&pixel, const std::int32_t x, const std::int32_t z) {
-        std::int32_t regionX = x >> 9;
-        std::int32_t regionZ = z >> 9;
-
-        if (const auto contained = find({regionX, regionZ});
-            contained == end()) {
-            Region region;
-
-            auto& tileChunk = region[x >> 6 & 7][z >> 6 & 7];
-            tileChunk.allocateChunks();
-            auto& chunk = tileChunk[x >> 4 & 3][z >> 4 & 3];
-            chunk.allocateColumns();
-            chunk[x & 15][z & 15] = std::forward<T>(pixel);
-
-            emplace(std::pair{regionX, regionZ}, std::move(region));
-        } else {
-            auto& tileChunk = contained->second[x >> 6 & 7][z >> 6 & 7];
-            tileChunk.allocateChunks();
-            auto& chunk = tileChunk[x >> 4 & 3][z >> 4 & 3];
-            chunk.allocateColumns();
-
-            chunk[x & 15][z & 15] = std::forward<T>(pixel);
-        }
-    }
-
-    template<typename T>
-    void Map::addChunk(T &&chunk, const std::int32_t chunkX, const std::int32_t chunkZ) {
-        std::int32_t regionX = chunkX >> 5;
-        std::int32_t regionZ = chunkZ >> 5;
-
-        if (const auto contained = find({regionX, regionZ});
-            contained == end()) {
-            Region region;
-
-            auto& tileChunk = region[chunkX >> 2 & 7][chunkZ >> 2 & 7];
-            tileChunk.allocateChunks();
-            tileChunk[chunkX & 3][chunkZ & 3] = std::forward<T>(chunk);
-
-            emplace(std::pair{regionX, regionZ}, std::move(region));
-        } else {
-            auto& tileChunk = contained->second[chunkX >> 2 & 7][chunkZ >> 2 & 7];
-            tileChunk.allocateChunks();
-            tileChunk[chunkX & 3][chunkZ & 3] = std::forward<T>(chunk);
-        }
-    }
 }

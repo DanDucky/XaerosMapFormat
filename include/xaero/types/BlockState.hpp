@@ -11,8 +11,7 @@ namespace xaero {
         explicit BlockState(std::string name, nbt::tag_compound properties);
 
         [[nodiscard]] std::string_view strippedName() const;
-
-        [[nodiscard]] nbt::tag_compound getNBT() const;
+        [[nodiscard]] std::string taggedName() const;
 
         [[nodiscard]] bool operator==(const BlockState & other) const;
 

@@ -4,9 +4,14 @@
 #include <tag_string.h>
 
 #include "util/StringUtils.hpp"
+#include <string_view>
 
 std::string_view xaero::BlockState::strippedName() const {
     return stripName(name);
+}
+
+std::string xaero::BlockState::taggedName() const {
+    return std::format("minecraft:{}", strippedName());
 }
 
 xaero::BlockState::BlockState(nbt::tag_compound nbt) :
@@ -15,18 +20,6 @@ xaero::BlockState::BlockState(nbt::tag_compound nbt) :
 }
 
 xaero::BlockState::BlockState(std::string name, nbt::tag_compound properties) : name(std::move(name)), properties(std::move(properties)) {
-}
-
-nbt::tag_compound xaero::BlockState::getNBT() const {
-    if (properties.size() > 0) {
-        return {
-            std::pair{"Name", std::format("minecraft:{}", strippedName())},
-            std::pair{"Properties", properties}
-        };
-    }
-    return {
-        std::pair{"Name", std::format("minecraft:{}", strippedName())},
-    };
 }
 
 bool xaero::BlockState::operator==(const BlockState &other) const {

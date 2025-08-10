@@ -26,12 +26,13 @@ namespace xaero {
      */
     Region parseRegion(std::istream& data);
 
-    std::string serializeRegion(const Region& region);
+    // lookups CAN be nullptr, it just means XaeroMapFormat *WILL NOT* check if your properties in BlockStates are correct, meaning the files might not end up being readable if you've made any mistakes.
+    std::string serializeRegion(const Region& region, const LookupPack *lookups);
 
     std::string packRegion(const std::string_view &serialized);
 
-    bool writeRegion(const Region& region, const std::filesystem::path& path
-    );
+    // lookups CAN be nullptr, it just means XaeroMapFormat *WILL NOT* check if your properties in BlockStates are correct, meaning the files might not end up being readable if you've made any mistakes.
+    bool writeRegion(const Region& region, const std::filesystem::path& path, const LookupPack *lookups);
 
     bool writeRegion(const std::string_view &serialized, const std::filesystem::path &path);
 

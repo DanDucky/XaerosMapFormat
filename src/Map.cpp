@@ -46,6 +46,73 @@ void xaero::Map::addRegion(std::istream &data, const std::int32_t regionX, const
     addRegion(parseRegion(data), regionX, regionZ, merge);
 }
 
+void xaero::Map::addRegion(Region &&region, const std::int32_t regionX, const std::int32_t regionZ, const MergeType merge) {
+    const auto contained = find({regionX, regionZ});
+
+    if (contained == end()) {
+        emplace(std::pair{regionX, regionZ}, std::forward<Region>(region));
+        return;
+    }
+
+    switch (merge) {
+        case MergeType::OVERRIDE:
+            contained->second = std::forward<Region>(region);
+            break;
+        case MergeType::ABOVE:
+            contained->second.mergeMove(region);
+            break;
+        case MergeType::BELOW:
+            region.mergeMove(contained->second);
+            contained->second = std::forward<Region>(region);
+            break;
+    }
+}
+
+void xaero::Map::addPixel(Region::TileChunk::Chunk::Pixel &&pixel, const std::int32_t x, const std::int32_t z) {
+    std::int32_t regionX = x >> 9;
+    std::int32_t regionZ = z >> 9;
+
+    if (const auto contained = find({regionX, regionZ});
+        contained == end()) {
+        Region region;
+
+        auto& tileChunk = region[x >> 6 & 7][z >> 6 & 7];
+        tileChunk.allocateChunks();
+        auto& chunk = tileChunk[x >> 4 & 3][z >> 4 & 3];
+        chunk.allocateColumns();
+        chunk[x & 15][z & 15] = std::forward<Region::TileChunk::Chunk::Pixel>(pixel);
+
+        emplace(std::pair{regionX, regionZ}, std::move(region));
+        } else {
+            auto& tileChunk = contained->second[x >> 6 & 7][z >> 6 & 7];
+            tileChunk.allocateChunks();
+            auto& chunk = tileChunk[x >> 4 & 3][z >> 4 & 3];
+            chunk.allocateColumns();
+
+            chunk[x & 15][z & 15] = std::forward<Region::TileChunk::Chunk::Pixel>(pixel);
+        }
+}
+
+void xaero::Map::addChunk(Region::TileChunk::Chunk &&chunk, const std::int32_t chunkX, const std::int32_t chunkZ) {
+    std::int32_t regionX = chunkX >> 5;
+    std::int32_t regionZ = chunkZ >> 5;
+
+    if (const auto contained = find({regionX, regionZ});
+        contained == end()) {
+        Region region;
+
+        auto& tileChunk = region[chunkX >> 2 & 7][chunkZ >> 2 & 7];
+        tileChunk.allocateChunks();
+        tileChunk[chunkX & 3][chunkZ & 3] = std::forward<Region::TileChunk::Chunk>(chunk);
+
+        emplace(std::pair{regionX, regionZ}, std::move(region));
+        } else {
+            auto& tileChunk = contained->second[chunkX >> 2 & 7][chunkZ >> 2 & 7];
+            tileChunk.allocateChunks();
+            tileChunk[chunkX & 3][chunkZ & 3] = std::forward<Region::TileChunk::Chunk>(chunk);
+        }
+}
+
 std::optional<xaero::RegionImage> xaero::Map::generateImage(std::int32_t regionX, std::int32_t regionZ) const {
     const auto contained = find({regionX, regionZ});
 
@@ -110,7 +177,7 @@ bool xaero::Map::writeRegion(std::int32_t regionX, std::int32_t regionZ, const s
 
     if (contained == end()) return false;
 
-    return xaero::writeRegion(contained->second, path);
+    return xaero::writeRegion(contained->second, path, lookups);
 }
 
 std::string xaero::Map::getSerialized(std::int32_t regionX, std::int32_t regionZ) const {
@@ -118,12 +185,12 @@ std::string xaero::Map::getSerialized(std::int32_t regionX, std::int32_t regionZ
 
     if (contained == end()) return "";
 
-    return xaero::serializeRegion(contained->second);
+    return xaero::serializeRegion(contained->second, lookups);
 }
 
 bool xaero::Map::writeRegions(const std::filesystem::path &rootPath) const {
     for (const auto&[coordinates, region] : *this) {
-        if (!xaero::writeRegion(region, rootPath / std::format("{}_{}.zip", coordinates.first, coordinates.second))) {
+        if (!xaero::writeRegion(region, rootPath / std::format("{}_{}.zip", coordinates.first, coordinates.second), lookups)) {
             return false;
         }
     }
@@ -135,7 +202,7 @@ std::vector<std::pair<std::pair<std::int32_t, std::int32_t>, std::string>> xaero
     output.reserve(size());
 
     for (const auto&[coordinates, region] : *this) {
-        output.emplace_back(coordinates, serializeRegion(region));
+        output.emplace_back(coordinates, serializeRegion(region, lookups));
     }
 
     return output;
