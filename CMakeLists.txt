@@ -5,6 +5,7 @@ project(XaerosMapFormat VERSION 0.1 DESCRIPTION "library for parsing XaerosMap d
 option(XAERO_BUILD_TESTS "builds catch2 tests" ON)
 option(XAERO_GENERATE_RESOURCES "generates minecraft lookup tables for colors and names, requires java and python" ON)
 option(XAERO_BUILD_EXAMPLES "builds example programs" ON)
+set(XAERO_MINECRAFT_VERSION "latest" CACHE STRING "override for Minecraft version to fetch resources from")
 
 add_library(XaerosMapFormat
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Map.cpp
@@ -238,32 +239,43 @@ if (XAERO_GENERATE_RESOURCES)
     # paraphrased from https://github.com/adepierre/Botcraft/blob/a673577228dbab69f63ea8f3298979aca0be8c10/cmake/mc_urls.cmake#L63
 
     set(VERSION_MANIFEST "${WORKING_DIRECTORY}/version_manifest_v2.json")
+    set(EXPECTED_VERSION_PACKAGE "${WORKING_DIRECTORY}/${XAERO_MINECRAFT_VERSION}.json")
 
-    file(DOWNLOAD
-            "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
-            ${VERSION_MANIFEST}
-            STATUS MANIFEST_RESULT
-    )
+    # will always be true for "latest" because we don't make latest.json
+    if (NOT EXISTS ${EXPECTED_VERSION_PACKAGE})
+        file(DOWNLOAD
+                "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
+                ${VERSION_MANIFEST}
+                STATUS MANIFEST_RESULT
+        )
 
-    if (NOT MANIFEST_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to download mojang's version manifest!")
-    endif ()
-
-    file(READ ${VERSION_MANIFEST} VERSION_MANIFEST_CONTENT)
-
-    string(JSON VERSIONS_ARRAY_LENGTH LENGTH ${VERSION_MANIFEST_CONTENT} "versions")
-    math(EXPR VERSIONS_ARRAY_LENGTH "${VERSIONS_ARRAY_LENGTH}-1")
-
-    foreach (I RANGE ${VERSIONS_ARRAY_LENGTH})
-        string(JSON VERSION_TYPE GET ${VERSION_MANIFEST_CONTENT} "versions" ${I} "type")
-        if (${VERSION_TYPE} STREQUAL "release")
-            string(JSON LATEST_VERSION GET ${VERSION_MANIFEST_CONTENT} "versions" ${I} "id")
-            string(JSON MINECRAFT_VERSION_URL GET ${VERSION_MANIFEST_CONTENT} "versions" ${I} "url")
-            break()
+        if (NOT MANIFEST_RESULT EQUAL 0)
+            message(FATAL_ERROR "Failed to download mojang's version manifest!")
         endif ()
-    endforeach ()
 
-    message(STATUS "Selected ${LATEST_VERSION} as the latest Minecraft release")
+        file(READ ${VERSION_MANIFEST} VERSION_MANIFEST_CONTENT)
+
+        string(JSON VERSIONS_ARRAY_LENGTH LENGTH ${VERSION_MANIFEST_CONTENT} "versions")
+        math(EXPR VERSIONS_ARRAY_LENGTH "${VERSIONS_ARRAY_LENGTH}-1")
+
+        foreach (I RANGE ${VERSIONS_ARRAY_LENGTH})
+            string(JSON VERSION_TYPE GET ${VERSION_MANIFEST_CONTENT} "versions" ${I} "type")
+            string(JSON LATEST_VERSION GET ${VERSION_MANIFEST_CONTENT} "versions" ${I} "id")
+            if ((${VERSION_TYPE} STREQUAL "release" AND ${XAERO_MINECRAFT_VERSION} STREQUAL "latest") OR ${LATEST_VERSION} STREQUAL "${XAERO_MINECRAFT_VERSION}")
+                string(JSON MINECRAFT_VERSION_URL GET ${VERSION_MANIFEST_CONTENT} "versions" ${I} "url")
+                break()
+            endif ()
+            set(LATEST_VERSION "NOT FOUND")
+        endforeach ()
+
+        if (${LATEST_VERSION} STREQUAL "NOT FOUND")
+            message(FATAL_ERROR "Could not find a Minecraft version for ${XAERO_MINECRAFT_VERSION}")
+        endif ()
+
+        message(STATUS "Selected ${LATEST_VERSION} as the Minecraft release")
+    else ()
+        set(LATEST_VERSION "${XAERO_MINECRAFT_VERSION}")
+    endif ()
 
     set(MINECRAFT_VERSION_PACKAGE "${WORKING_DIRECTORY}/${LATEST_VERSION}.json")
 
@@ -388,7 +400,7 @@ if (XAERO_GENERATE_RESOURCES)
     add_library(XaerosLookups OBJECT ${SOURCES_LIST})
     target_link_libraries(XaerosLookups PRIVATE nbt++)
     target_include_directories(XaerosLookups PRIVATE ${WORKING_DIRECTORY}/generated/include)
-    target_compile_definitions(XaerosLookups PUBLIC XAERO_DEFAULT_LOOKUPS=1)
+    target_compile_definitions(XaerosLookups PUBLIC XAERO_DEFAULT_LOOKUPS)
     target_include_directories(XaerosLookups PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
     target_link_libraries(XaerosMapFormat PUBLIC XaerosLookups)

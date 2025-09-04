@@ -21,11 +21,12 @@ cmake --build <path/to/build/dir>
 ```
 
 ### Options
-| Name                       | Description                                                                                 | Default Value |
-|:---------------------------|:--------------------------------------------------------------------------------------------|:--------------|
-| `XAERO_BUILD_TESTS`        | Builds test executable                                                                      | `ON`          |
-| `XAERO_GENERATE_RESOURCES` | Generates Minecraft data lookup tables for rendering and format upgrades.                   | `ON`          |
-| `XAERO_BUILD_EXAMPLES`     | Builds example programs                                                                     | `ON`          |
+| Name                       | Description                                                               | Default Value |
+|:---------------------------|:--------------------------------------------------------------------------|:--------------|
+| `XAERO_BUILD_TESTS`        | Builds test executable                                                    | `ON`          |
+| `XAERO_GENERATE_RESOURCES` | Generates Minecraft data lookup tables for rendering and format upgrades. | `ON`          |
+| `XAERO_BUILD_EXAMPLES`     | Builds example programs                                                   | `ON`          |
+| `XAERO_MINECRAFT_VERSION`  | Minecraft version for resources                                           | `latest`      |
 
 ## Dependencies
 
@@ -33,7 +34,7 @@ cmake --build <path/to/build/dir>
 
 - CMake
 - C++23 compiler
-- Catch2 (if `XAERO_BUILD_TESTS`) *provided through CPM CMake, I haven't provided an override for this because it should be turned off in production anyways*
+- Catch2 (if `XAERO_BUILD_TESTS`)
 
 > I'm sorry for these, but they are unfortunately necessary for this process unless we want to process textures in raw CMake. They can be turned off with `XAERO_GENERATE_RESOURCES` but this would just offload that work onto users, which would be a huge pain and provides ample room for mistakes. It might be possible to remove the Java dependency, but I don't know how to get the block ids from the version jar.
 

@@ -85,7 +85,7 @@ namespace xaero {
         [[nodiscard]] const TileChunk::Chunk::Pixel* operator[](std::uint16_t relX, std::uint16_t relZ) const;
         [[nodiscard]] TileChunk::Chunk::Pixel* operator[](std::uint16_t relX, std::uint16_t relZ);
 
-        [[nodiscard]] bool hasPixel(std::uint16_t relX, std::uint16_t relZ) const;
+        [[nodiscard]] bool hasChunk(std::uint8_t relX, std::uint8_t relZ) const;
 
         void mergeMove(Region& other);
         void mergeCopy(const Region& other);

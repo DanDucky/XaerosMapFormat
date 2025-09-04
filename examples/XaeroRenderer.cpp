@@ -7,7 +7,8 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
-#include "xaero/RegionTools.hpp"
+#include <xaero/RegionTools.hpp>
+#include <xaero/types/Region.hpp>
 
 xaero::RegionImage getImage (const std::filesystem::path& data) {
     std::cout << "Getting: " << data.string() << "\n";
@@ -55,7 +56,9 @@ int main(int argc, char** argv) {
             const auto& inputPath = file.path();
             if (file.is_directory() || inputPath.extension() != ".zip") continue;
 
-            writeImage(getImage(inputPath), outputRoot / inputPath.filename().replace_extension("png") );
+            xaero::parseRegion(inputPath);
+            // getImage(inputPath);
+            // writeImage(getImage(inputPath), outputRoot / inputPath.filename().replace_extension("png") );
         }
     } else {
         writeImage(getImage(input), outputRoot / input.filename().replace_extension("png") );

@@ -220,7 +220,7 @@ xaero::Region::TileChunk::Chunk::Pixel * xaero::Region::operator[](const std::ui
     return &chunk[relX & 15][relZ & 15];
 }
 
-bool xaero::Region::hasPixel(const std::uint16_t relX, const std::uint16_t relZ) const {
+bool xaero::Region::hasChunk(const std::uint8_t relX, const std::uint8_t relZ) const {
     if (relX >= 512 || relZ >= 512) return false;
 
     const auto& tileChunk = tileChunks[relX >> 6][relZ >> 6];
@@ -229,9 +229,7 @@ bool xaero::Region::hasPixel(const std::uint16_t relX, const std::uint16_t relZ)
 
     const auto& chunk = tileChunk[relX >> 4 & 3][relZ >> 4 & 3];
 
-    if (!chunk.isPopulated()) return false;
-
-    return true;
+    return chunk.isPopulated();
 }
 
 void xaero::Region::mergeMove(Region &other) {
