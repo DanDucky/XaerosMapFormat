@@ -46,32 +46,6 @@ namespace xaero {
         CUSTOM_BIOME = 3
     }; // the names here are GUESSES and probably incorrect, thank Xaero for using magic numbers everywhere and then not providing source code with comments
 
-    inline std::string_view getBiome(const std::variant<std::shared_ptr<std::string>, std::string, std::string_view>& biome) {
-        std::string_view out;
-        if (std::holds_alternative<std::shared_ptr<std::string>>(biome)) {
-            out = *std::get<std::shared_ptr<std::string>>(biome);
-        } else if (std::holds_alternative<std::string>(biome)) {
-            out = std::get<std::string>(biome);
-        } else if (std::holds_alternative<std::string_view>(biome)) {
-            out = std::get<std::string_view>(biome);
-        }
-
-        return stripName(out);
-    }
-
-    inline const BlockState* getState(const std::variant<std::monostate, BlockState, std::shared_ptr<BlockState>, const BlockState*>& state) {
-        if (std::holds_alternative<std::monostate>(state)) {
-            return getStateFromID(0); // air
-        }
-        if (std::holds_alternative<const BlockState*>(state)) {
-            return std::get<const BlockState*>(state);
-        }
-        if (std::holds_alternative<BlockState>(state)) {
-            return &std::get<BlockState>(state);
-        }
-        return std::get<std::shared_ptr<BlockState>>(state).get();
-    }
-
     inline const nbt::tag_compound* getFullProperties(const BlockState& state, const LookupPack* lookups) {
         const auto containedBlock = lookups->stateLookup.find(state.strippedName());
 
@@ -160,7 +134,7 @@ namespace xaero {
 
                     chunk.allocateColumns();
 
-                    for (auto& pixelRow : *chunk.columns) {
+                    for (auto& pixelRow : *chunk.pixels) {
                         for (auto& pixel : pixelRow) {
                             auto parameters = stream.getNextAsView<std::uint32_t>();
                             const bool isNotGrass = parameters.getNextBits(1);
@@ -403,11 +377,11 @@ namespace xaero {
                             continue;
                         }
 
-                        for (auto& pixelRow : *chunk.columns) {
+                        for (auto& pixelRow : *chunk.pixels) {
                             for (auto& pixel : pixelRow) {
                                 BitWriter<std::uint32_t> parameters;
 
-                                auto state = getState(pixel.state);
+                                auto state = pixel.getState();
                                 const bool isGrass = state->isName("grass_block");
 
                                 parameters.writeNext(!isGrass, 1);
@@ -437,7 +411,7 @@ namespace xaero {
                                 std::size_t biomePaletteIndex = 0;
                                 std::string_view biome;
                                 if (pixel.biome.has_value()) {
-                                    biome = getBiome(pixel.biome.value());
+                                    biome = pixel.getBiome().value();
 
                                     if (const auto found = std::ranges::find(biomePalette.begin(), biomePalette.end(), biome);
                                         found == biomePalette.end()) {
@@ -476,7 +450,7 @@ namespace xaero {
                                     for (const auto& overlay : pixel.overlays) {
                                         BitWriter<std::uint32_t> overlayParameters;
 
-                                        const auto overlayState = getState(overlay.state);
+                                        const auto overlayState = overlay.getState();
                                         const bool isWater = overlayState->isName("water");
 
                                         overlayParameters.writeNext(!isWater, 1);
@@ -641,13 +615,12 @@ namespace xaero {
 
     // separated so it can be used on both the overlays and the pixels
     inline RegionImage::Pixel getStateColor(
-        const std::variant<std::monostate, BlockState, std::shared_ptr<BlockState>, const BlockState*>& stateVariant,
+        const BlockState* const state,
         const BiomeColors& biome,
         const LookupPack* lookups) {
 
         RegionImage::Pixel color;
         TintIndex tint;
-        const auto state = getState(stateVariant);
 
         if (const auto properties = lookups->stateLookup.find(state->strippedName());
             properties != lookups->stateLookup.end()) {
@@ -723,7 +696,7 @@ namespace xaero {
                                 const std::uint16_t z = pixelZ | chunkZ << 4 | tileChunkZ << 6;
                                 const auto& pixel = chunk[pixelX][pixelZ];
 
-                                const auto biome = pixel.biome ? getBiome(pixel.biome.value()) : "plains";
+                                const auto biome = pixel.getBiome().value_or("plains");
 
                                 const auto foundBiome = lookups->biomeLookup.find(biome);
                                 BiomeColors biomeColors;
@@ -733,12 +706,12 @@ namespace xaero {
                                     biomeColors = lookups->biomeLookup.at("plains");
                                 }
 
-                                auto color = getStateColor(pixel.state, biomeColors, lookups);
+                                auto color = getStateColor(pixel.getState(), biomeColors, lookups);
                                 output[z][x] = color;
 
                                 if (pixel.hasOverlays()) {
                                     for (const auto& overlay : pixel.overlays) {
-                                        auto overlayColor = getStateColor(overlay.state, biomeColors, lookups);
+                                        auto overlayColor = getStateColor(overlay.getState(), biomeColors, lookups);
 
                                         const auto intensity = getBrightnessMultiplier(9, overlay.light, 15);
                                     }

@@ -56,9 +56,8 @@ int main(int argc, char** argv) {
             const auto& inputPath = file.path();
             if (file.is_directory() || inputPath.extension() != ".zip") continue;
 
-            xaero::parseRegion(inputPath);
-            // getImage(inputPath);
-            // writeImage(getImage(inputPath), outputRoot / inputPath.filename().replace_extension("png") );
+            getImage(inputPath);
+            writeImage(getImage(inputPath), outputRoot / inputPath.filename().replace_extension("png") );
         }
     } else {
         writeImage(getImage(input), outputRoot / input.filename().replace_extension("png") );

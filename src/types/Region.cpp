@@ -1,6 +1,35 @@
 #include "xaero/types/Region.hpp"
 
+#include "lookups/LegacyCompatibility.hpp"
+#include "util/StringUtils.hpp"
+
 #include <utility>
+
+inline const xaero::BlockState* getStateForUnion(const std::variant<std::monostate, xaero::BlockState, std::shared_ptr<xaero::BlockState>, const xaero::BlockState*>& state) {
+    if (std::holds_alternative<std::monostate>(state)) {
+        return xaero::getStateFromID(0); // air
+    }
+    if (std::holds_alternative<const xaero::BlockState*>(state)) {
+        return std::get<const xaero::BlockState*>(state);
+    }
+    if (std::holds_alternative<xaero::BlockState>(state)) {
+        return &std::get<xaero::BlockState>(state);
+    }
+    return std::get<std::shared_ptr<xaero::BlockState>>(state).get();
+}
+
+inline std::string_view getBiomeForUnion(const std::variant<std::shared_ptr<std::string>, std::string, std::string_view>& biome) {
+    std::string_view out;
+    if (std::holds_alternative<std::shared_ptr<std::string>>(biome)) {
+        out = *std::get<std::shared_ptr<std::string>>(biome);
+    } else if (std::holds_alternative<std::string>(biome)) {
+        out = std::get<std::string>(biome);
+    } else if (std::holds_alternative<std::string_view>(biome)) {
+        out = std::get<std::string_view>(biome);
+    }
+
+    return xaero::stripName(out);
+}
 
 xaero::Region::TileChunk::Chunk::Chunk(const Chunk &other) {
     caveDepth = other.caveDepth;
@@ -13,11 +42,7 @@ xaero::Region::TileChunk::Chunk::Chunk(const Chunk &other) {
 
     allocateColumns();
 
-    for (std::uint8_t x = 0; x < 16; x++) {
-        for (std::uint8_t z = 0; z < 16; z++) {
-            (*columns)[x][z] = (*other.columns)[x][z];
-        }
-    }
+    *pixels = *other.pixels;
 }
 
 xaero::Region::TileChunk::Chunk::Chunk(Chunk &&other) noexcept {
@@ -25,7 +50,7 @@ xaero::Region::TileChunk::Chunk::Chunk(Chunk &&other) noexcept {
     caveStart = other.caveStart;
     chunkInterpretationVersion = other.chunkInterpretationVersion;
 
-    columns = std::exchange(other.columns, nullptr);
+    pixels = std::exchange(other.pixels, nullptr);
 }
 
 xaero::Region::TileChunk::Chunk & xaero::Region::TileChunk::Chunk::operator=(const Chunk &other) {
@@ -42,11 +67,7 @@ xaero::Region::TileChunk::Chunk & xaero::Region::TileChunk::Chunk::operator=(con
 
     allocateColumns();
 
-    for (std::uint8_t x = 0; x < 16; x++) {
-        for (std::uint8_t z = 0; z < 16; z++) {
-            (*columns)[x][z] = (*other.columns)[x][z];
-        }
-    }
+    *pixels = *other.pixels;
 
     return *this;
 }
@@ -60,53 +81,63 @@ xaero::Region::TileChunk::Chunk & xaero::Region::TileChunk::Chunk::operator=(Chu
     caveStart = other.caveStart;
     chunkInterpretationVersion = other.chunkInterpretationVersion;
 
-    columns = std::exchange(other.columns, nullptr);
+    pixels = std::exchange(other.pixels, nullptr);
 
     return *this;
+}
+
+const xaero::BlockState* xaero::Region::TileChunk::Chunk::Pixel::Overlay::getState() const {
+    return getStateForUnion(state);
 }
 
 bool xaero::Region::TileChunk::Chunk::Pixel::hasOverlays() const {
     return overlays.size() > 0;
 }
 
-xaero::Region::TileChunk::Chunk::Pixel * xaero::Region::TileChunk::Chunk::operator[](int x) {
-    return (*columns)[x];
+const xaero::BlockState* xaero::Region::TileChunk::Chunk::Pixel::getState() const {
+    return getStateForUnion(state);
 }
 
-const xaero::Region::TileChunk::Chunk::Pixel * xaero::Region::TileChunk::Chunk::operator[](int x) const {
-    return (*columns)[x];
+std::optional<std::string_view> xaero::Region::TileChunk::Chunk::Pixel::getBiome() const {
+    if (!biome) return std::nullopt;
+    return getBiomeForUnion(biome.value());
+}
+
+std::array<xaero::Region::TileChunk::Chunk::Pixel, 16>& xaero::Region::TileChunk::Chunk::operator[](const int x) {
+    return (*pixels)[x];
+}
+
+const std::array<xaero::Region::TileChunk::Chunk::Pixel, 16>& xaero::Region::TileChunk::Chunk::operator[
+](const int x) const {
+    return (*pixels)[x];
 }
 
 bool xaero::Region::TileChunk::Chunk::isPopulated() const {
-    return columns;
-}
-
-xaero::Region::TileChunk::Chunk::operator bool() const {
-    return isPopulated();
+    return pixels;
 }
 
 void xaero::Region::TileChunk::Chunk::allocateColumns() {
-    if (columns) return;
-    columns = reinterpret_cast<Pixel(*)[16][16]>(new Pixel[16 * 16]);
+    if (pixels) return;
+    pixels = new std::array<std::array<Pixel, 16>, 16>();
 }
 
 void xaero::Region::TileChunk::Chunk::deallocateColumns() noexcept {
-    delete[] reinterpret_cast<Pixel*>(columns);
-    columns = nullptr;
+    delete[] reinterpret_cast<Pixel*>(pixels);
+    pixels = nullptr;
 }
 
 xaero::Region::TileChunk::Chunk::Chunk() : chunkInterpretationVersion(1) {
 }
 
 xaero::Region::TileChunk::Chunk::~Chunk() {
-    delete[] reinterpret_cast<Pixel*>(columns);
+    delete pixels;
 }
 
-xaero::Region::TileChunk::Chunk * xaero::Region::TileChunk::operator[](int x) {
+std::array<xaero::Region::TileChunk::Chunk, 4>& xaero::Region::TileChunk::operator[](int x) {
     return (*chunks)[x];
 }
 
-const xaero::Region::TileChunk::Chunk * xaero::Region::TileChunk::operator[](int x) const {
+const std::array<xaero::Region::TileChunk::Chunk, 4>& xaero::Region::TileChunk::operator[](int x) const {
     return (*chunks)[x];
 }
 
@@ -120,16 +151,16 @@ xaero::Region::TileChunk::operator bool() const {
 
 void xaero::Region::TileChunk::allocateChunks() {
     if (chunks) return;
-    chunks = reinterpret_cast<Chunk(*)[4][4]>(new Chunk[4 * 4]);
+    chunks = new std::array<std::array<Chunk, 4>, 4>();
 }
 
 void xaero::Region::TileChunk::deallocateChunks() noexcept {
-    delete[] reinterpret_cast<Chunk*>(chunks);
+    delete chunks;
     chunks = nullptr;
 }
 
 xaero::Region::TileChunk::~TileChunk() {
-    delete[] reinterpret_cast<Chunk*>(chunks);
+    delete chunks;
 }
 
 xaero::Region::TileChunk::TileChunk(const TileChunk &other) {
@@ -139,11 +170,7 @@ xaero::Region::TileChunk::TileChunk(const TileChunk &other) {
 
     allocateChunks();
 
-    for (std::uint8_t chunkX = 0; chunkX < 4; chunkX++) {
-        for (std::uint8_t chunkZ = 0; chunkZ < 4; chunkZ++) {
-            (*chunks)[chunkX][chunkZ] = (*other.chunks)[chunkX][chunkZ];
-        }
-    }
+    *chunks = *other.chunks;
 }
 
 xaero::Region::TileChunk::TileChunk(TileChunk &&other) noexcept {
@@ -162,11 +189,7 @@ xaero::Region::TileChunk & xaero::Region::TileChunk::operator=(const TileChunk &
 
     allocateChunks();
 
-    for (std::uint8_t chunkX = 0; chunkX < 4; chunkX++) {
-        for (std::uint8_t chunkZ = 0; chunkZ < 4; chunkZ++) {
-            (*chunks)[chunkX][chunkZ] = (*other.chunks)[chunkX][chunkZ];
-        }
-    }
+    *chunks = *other.chunks;
 
     return *this;
 }
@@ -181,17 +204,17 @@ xaero::Region::TileChunk & xaero::Region::TileChunk::operator=(TileChunk &&other
     return *this;
 }
 
-xaero::Region::TileChunk * xaero::Region::operator[](const int x) {
+std::array<xaero::Region::TileChunk, 8>& xaero::Region::operator[](const int x) {
     return tileChunks[x];
 }
 
-const xaero::Region::TileChunk * xaero::Region::operator[](const int x) const {
+const std::array<xaero::Region::TileChunk, 8>& xaero::Region::operator[](const int x) const {
     return tileChunks[x];
 }
 
 const xaero::Region::TileChunk::Chunk::Pixel* xaero::Region::operator[
 ](const std::uint16_t relX, const std::uint16_t relZ) const {
-    if (relX >= 521 || relZ >= 512) return nullptr; // out of bounds!
+    if (relX >= 512 || relZ >= 512) return nullptr; // out of bounds!
 
     // can be shifted instead of using modulo, should be faster :smirkcat:
 
@@ -221,7 +244,7 @@ xaero::Region::TileChunk::Chunk::Pixel * xaero::Region::operator[](const std::ui
 }
 
 bool xaero::Region::hasChunk(const std::uint8_t relX, const std::uint8_t relZ) const {
-    if (relX >= 512 || relZ >= 512) return false;
+    if (relX >= 32 || relZ >= 32) return false;
 
     const auto& tileChunk = tileChunks[relX >> 6][relZ >> 6];
 
@@ -247,8 +270,8 @@ void xaero::Region::mergeMove(Region &other) {
 
                     tileChunk[chunkX][chunkZ].deallocateColumns();
 
-                    tileChunk[chunkX][chunkZ].columns = chunk.columns;
-                    chunk.columns = nullptr;
+                    tileChunk[chunkX][chunkZ].pixels = chunk.pixels;
+                    chunk.pixels = nullptr;
                 }
             }
         }

@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <variant>
+#include <array>
 #include <tag_compound.h>
 #include <vector>
 #include <memory>
@@ -24,21 +25,27 @@ namespace xaero {
                     std::optional<std::uint8_t> topHeight;
 
                     // the rationale for this being optional instead of having a std::monostate is that xaero "officially" might not have a biome, but it ALWAYS has a state
+                    std::optional<std::variant<std::shared_ptr<std::string>, std::string, std::string_view>> biome;
 
-                    std::optional<std::variant<std::shared_ptr<std::string>, std::string, std::string_view>> biome; // biome ids are so unsupported that I can't even add them here :(
+                    // std::monostate is default and "nullopt"
                     std::variant<std::monostate, BlockState, std::shared_ptr<BlockState>, const BlockState*> state;
 
                     struct Overlay {
                         std::uint8_t light;
                         std::optional<std::int32_t> opacity;
                         std::variant<std::monostate, BlockState, std::shared_ptr<BlockState>, const BlockState*> state;
+
+                        [[nodiscard]] const BlockState* getState() const;
                     };
                     std::vector<Overlay> overlays;
 
                     [[nodiscard]] bool hasOverlays() const;
+
+                    [[nodiscard]] const BlockState* getState() const;
+                    [[nodiscard]] std::optional<std::string_view> getBiome() const;
                 };
 
-                Pixel (*columns)[16][16] = nullptr;
+                std::array<std::array<Pixel, 16>, 16> *pixels = nullptr;
 
                 std::int32_t caveStart=0;
                 std::int8_t caveDepth=0;
@@ -46,10 +53,9 @@ namespace xaero {
                 // will set a default value
                 std::int8_t chunkInterpretationVersion;
 
-                [[nodiscard]] Pixel* operator[] (int x);
-                [[nodiscard]] const Pixel* operator[] (int x) const;
+                [[nodiscard]] std::array<Pixel, 16>& operator[] (int x);
+                [[nodiscard]] const std::array<Pixel, 16>& operator[] (int x) const;
                 [[nodiscard]] bool isPopulated() const;
-                [[nodiscard]] explicit operator bool() const;
 
                 void allocateColumns();
                 void deallocateColumns() noexcept;
@@ -58,10 +64,10 @@ namespace xaero {
 
                 ~Chunk();
             };
-            Chunk (*chunks)[4][4] = nullptr;
+            std::array<std::array<Chunk, 4>, 4>* chunks = nullptr;
 
-            [[nodiscard]] Chunk* operator[] (int x);
-            [[nodiscard]] const Chunk* operator[] (int x) const;
+            [[nodiscard]] std::array<Chunk, 4>& operator[] (int x);
+            [[nodiscard]] const std::array<Chunk, 4>& operator[] (int x) const;
             [[nodiscard]] bool isPopulated() const;
             [[nodiscard]] explicit operator bool() const;
 
@@ -77,10 +83,10 @@ namespace xaero {
             TileChunk& operator=(const TileChunk& other);
             TileChunk& operator=(TileChunk&& other) noexcept;
         };
-        TileChunk tileChunks[8][8];
+        std::array<std::array<TileChunk, 8>, 8> tileChunks;
 
-        [[nodiscard]] TileChunk* operator[] (int x);
-        [[nodiscard]] const TileChunk* operator[] (int x) const;
+        [[nodiscard]] std::array<TileChunk, 8>& operator[] (int x);
+        [[nodiscard]] const std::array<TileChunk, 8>& operator[] (int x) const;
 
         [[nodiscard]] const TileChunk::Chunk::Pixel* operator[](std::uint16_t relX, std::uint16_t relZ) const;
         [[nodiscard]] TileChunk::Chunk::Pixel* operator[](std::uint16_t relX, std::uint16_t relZ);
