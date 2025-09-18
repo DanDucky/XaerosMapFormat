@@ -6,6 +6,7 @@
 #include <bit>
 
 #include "BitView.hpp"
+#include "Endianness.hpp"
 
 namespace xaero {
     class ByteInputStream final {
@@ -45,15 +46,12 @@ namespace xaero {
         T output;
         stream.read(reinterpret_cast<char*>(&output), sizeof(T));
 
-        if constexpr (std::endian::native == std::endian::little) {
+        if (stream.fail() || stream.eof()) {
+            throw std::out_of_range("read failure while reading region file");
+        }
+
+        if (endianness == std::endian::little) {
             std::ranges::reverse(reinterpret_cast<char*>(&output), reinterpret_cast<char*>(&output) + sizeof(T));
-        } else if constexpr (std::endian::native != std::endian::big) {
-            // test endianness at runtime
-            union {
-                std::uint16_t value = 1;
-                std::uint8_t array[2];
-            };
-            if (array[0] == 1) std::ranges::reverse(reinterpret_cast<char*>(&output), reinterpret_cast<char*>(&output) + sizeof(T));
         }
 
         return output;

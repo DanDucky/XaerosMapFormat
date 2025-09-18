@@ -2,6 +2,8 @@
 
 #include <cmath>
 #include <algorithm>
+#include <stdexcept>
+
 #include <ztd/text/transcode.hpp>
 #include <ztd/text/utf8.hpp>
 
@@ -26,6 +28,10 @@ std::string xaero::ByteInputStream::getNextMUTF() {
     char8_t* const rawString = new char8_t[length];
 
     stream.read(reinterpret_cast<char*>(rawString), length);
+
+    if (stream.fail() || stream.eof()) {
+        throw std::out_of_range("read failure while reading region file");
+    }
 
     ztd::span<const char8_t> input(rawString, length);
 

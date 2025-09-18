@@ -5,32 +5,34 @@
 #include <memory>
 #include <cstddef>
 
-template <typename T>
-class BitView {
-private:
-    const T data;
-    std::size_t position = 0;
+namespace xaero {
+    template <typename T>
+    class BitView {
+    private:
+        const T data;
+        std::size_t position = 0;
 
-public:
-    explicit BitView(T data) : data(std::move(data)) {
-    }
+    public:
+        explicit BitView(T data) : data(std::move(data)) {
+        }
 
-    T getNextBits(const std::size_t n) {
-        const auto output = peekNextBits(n);
-        position += n;
-        return output;
-    }
+        T getNextBits(const std::size_t n) {
+            const auto output = peekNextBits(n);
+            position += n;
+            return output;
+        }
 
-    T peekNextBits(const std::uint8_t n) {
-        return static_cast<T>((data >> position) << (sizeof(T) * 8 - n)) >> (sizeof(T) * 8 - n) ;
-    }
+        T peekNextBits(const std::uint8_t n) {
+            return static_cast<T>((data >> position) << (sizeof(T) * 8 - n)) >> (sizeof(T) * 8 - n) ;
+        }
 
-    void skipBits(const std::size_t n) {
-        position += n;
-    }
+        void skipBits(const std::size_t n) {
+            position += n;
+        }
 
-    void skipToNextByte() {
-        position = ((position >> 3) + 1) << 3;
-    }
+        void skipToNextByte() {
+            position = ((position >> 3) + 1) << 3;
+        }
 
-};
+    };
+}
