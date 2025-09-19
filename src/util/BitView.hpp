@@ -9,7 +9,7 @@ namespace xaero {
     template <typename T>
     class BitView {
     private:
-        const T data;
+        T data;
         std::size_t position = 0;
 
     public:

@@ -108,7 +108,7 @@ namespace xaero {
             }
 
             if (region.majorVersion > XAERO_REGION_VERSION_MAJOR || region.minorVersion > XAERO_REGION_VERSION_MINOR) {
-                // unrecognized version... return unexpected
+                throw std::runtime_error(std::format("tried to read region.xaero of version {}.{} with XaerosMapFormat at {}.{}", region.majorVersion, region.minorVersion, XAERO_REGION_VERSION_MAJOR, XAERO_REGION_VERSION_MINOR));
             }
         }
 
@@ -116,10 +116,11 @@ namespace xaero {
 
         for (std::uint8_t tileCount = 0; tileCount < 8*8; tileCount++) { // just for max iterations
 
-            auto coordinates = stream.getNextAsView<std::uint8_t>();
-            if (stream.eof()) {
+            if (stream.getStream().peek() == EOF) {
                 break;
             }
+
+            auto coordinates = stream.getNextAsView<std::uint8_t>();
 
             const std::uint8_t tileZ = coordinates.getNextBits(4);
             const std::uint8_t tileX = coordinates.getNextBits(4);
@@ -632,17 +633,15 @@ namespace xaero {
             tint = TintIndex::NONE;
         }
 
-        if (tint != TintIndex::NONE) {
-            if (const auto strippedName = state->strippedName();
-                strippedName.contains("redstone")) {
-                tint = TintIndex::REDSTONE;
-            } else if (strippedName == "leaf_litter") {
-                tint = TintIndex::DRY_FOLIAGE;
-            } else if (strippedName.contains("leaves") || strippedName == "vine") {
-                tint = TintIndex::FOLIAGE;
-            } else if (strippedName.contains("water")) {
-                tint = TintIndex::WATER;
-            }
+        if (const auto strippedName = state->strippedName();
+            strippedName.contains("redstone")) {
+            tint = TintIndex::REDSTONE;
+        } else if (strippedName == "leaf_litter") {
+            tint = TintIndex::DRY_FOLIAGE;
+        } else if (strippedName.contains("leaves") || strippedName == "vine") {
+            tint = TintIndex::FOLIAGE;
+        } else if (strippedName.contains("water")) {
+            tint = TintIndex::WATER;
         }
 
         RegionImage::Pixel tintColor = {255, 255, 255}; // will cancel out in the math;
@@ -707,15 +706,38 @@ namespace xaero {
                                 }
 
                                 auto color = getStateColor(pixel.getState(), biomeColors, lookups);
-                                output[z][x] = color;
 
                                 if (pixel.hasOverlays()) {
+                                    struct WideColor {
+                                        int red;
+                                        int green;
+                                        int blue;
+                                    };
+
+                                    WideColor average{
+                                        color.red,
+                                        color.green,
+                                        color.blue
+                                    };
+
                                     for (const auto& overlay : pixel.overlays) {
                                         auto overlayColor = getStateColor(overlay.getState(), biomeColors, lookups);
-
-                                        const auto intensity = getBrightnessMultiplier(9, overlay.light, 15);
+                                        const float multiplier = static_cast<float>(overlayColor.alpha) / 255.0f;
+                                        overlayColor.red = multiplier * overlayColor.red;
+                                        overlayColor.green = multiplier * overlayColor.green;
+                                        overlayColor.blue = multiplier * overlayColor.blue;
+                                        average.red += overlayColor.red;
+                                        average.green += overlayColor.green;
+                                        average.blue += overlayColor.blue;
                                     }
+
+                                    color.red   = average.red   / (pixel.overlays.size() + 1);
+                                    color.green = average.green / (pixel.overlays.size() + 1);
+                                    color.blue  = average.blue  / (pixel.overlays.size() + 1);
                                 }
+
+                                color.alpha = 255;
+                                output[z][x] = color;
                             }
                         }
                     }

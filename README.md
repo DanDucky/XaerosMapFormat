@@ -9,7 +9,7 @@ continuation and libraryfication of [XaerotoJourneyMap](https://github.com/DanDu
 
 - Only parses the Xaero's World Map save files, and does not parse cache files. Caches are the only format written by Xaero's Map in singleplayer, so this is effectively only useful for server data.
 - Can only write version `7.8` files, but can read any version's files. See [Versioning](#Versioning).
-- Rendering is limited but working. It does not render lighting or overlays. This makes maps appear flat and often does not render water. This can be improved but is currently not a priority.
+- Rendering is limited but working. It does not render lighting. This makes maps appear flat. This can be improved but is currently not a priority for me.
 - Some maps save cave data, but this library does not read that data right now. It will only render the top layer of the region.
 - Will correctly render biome tint.
 - Outputs [stb_image_write](https://github.com/nothings/stb) compatible data.

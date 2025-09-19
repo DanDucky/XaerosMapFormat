@@ -56,7 +56,6 @@ int main(int argc, char** argv) {
             const auto& inputPath = file.path();
             if (file.is_directory() || inputPath.extension() != ".zip") continue;
 
-            getImage(inputPath);
             writeImage(getImage(inputPath), outputRoot / inputPath.filename().replace_extension("png") );
         }
     } else {

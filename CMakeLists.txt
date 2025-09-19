@@ -20,7 +20,7 @@ add_library(XaerosMapFormat
         ${CMAKE_CURRENT_SOURCE_DIR}/src/lookups/LegacyCompatibility.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/lookups/LegacyCompatibility.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/lookups/BlockLookups.cpp
-        src/util/Endianness.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/util/Endianness.cpp
 )
 
 add_library(Xaero::XaerosMapFormat ALIAS XaerosMapFormat)
