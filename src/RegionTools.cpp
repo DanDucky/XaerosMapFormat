@@ -178,21 +178,24 @@ namespace xaero {
 
                             if (isNotGrass) {
                                 if (region.majorVersion == 0) { // old format, state is a state id
-                                    const auto state = stream.getNext<int32_t>();
-                                    pixel.state = getStateFromID(state);
+                                    const auto stateID = stream.getNext<std::int32_t>();
+                                    auto state = std::make_shared<BlockState>(*getStateFromID(stateID));
+                                    convertNBT(state.get(), region.majorVersion);
+                                    pixel.state = std::move(state);
                                 } else {
                                     if (newStatePaletteEntry) {
                                         auto nbtStream = nbt::io::stream_reader(stream.getStream());
 
-                                        auto nbt = nbtStream.read_compound();
+                                        const auto nbt = nbtStream.read_compound();
 
-                                        if (region.majorVersion < 7) {
-                                            convertNBT(nbt.second, region.majorVersion); // make it up to date pls !
-                                        }
                                         statePalette.emplace_back(std::make_shared<BlockState>(std::move(*nbt.second))); // copy the stupid compound tag because why is that a ptr
                                         pixel.state = statePalette.back();
+
+                                        if (region.majorVersion < 7) {
+                                            convertNBT(statePalette.back().get(), region.majorVersion); // make it up to date pls !
+                                        }
                                     } else {
-                                        const auto paletteIndex = stream.getNext<int32_t>();
+                                        const auto paletteIndex = stream.getNext<std::int32_t>();
                                         pixel.state = statePalette[paletteIndex];
                                     }
                                 }
@@ -305,7 +308,7 @@ namespace xaero {
                                             const auto biomeName = stream.getNextMUTF(); // mutf is garbage
                                             biome = region.majorVersion < 6 ?
                                                 fixBiome(stripName(biomeName)) :
-                                                std::move(stripName(biomeName));
+                                                stripName(biomeName);
                                         }
 
                                         biomePalette.emplace_back(std::make_shared<std::string>(std::move(biome)));
@@ -712,9 +715,7 @@ namespace xaero {
                                         int red;
                                         int green;
                                         int blue;
-                                    };
-
-                                    WideColor average{
+                                    } average {
                                         color.red,
                                         color.green,
                                         color.blue

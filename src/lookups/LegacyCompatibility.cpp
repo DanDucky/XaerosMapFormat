@@ -69,29 +69,28 @@ std::string_view xaero::getBiomeFromID(const std::uint32_t biomeID) {
     return lookup[biomeID];
 }
 
-void xaero::convertNBT(std::unique_ptr<nbt::tag_compound> &nbt, const std::int16_t majorVersion) {
+void xaero::convertNBT(BlockState* const state, const std::uint16_t majorVersion) {
+    const auto name = state->strippedName();
     if (majorVersion == 1) {
-        const auto name = nbt->at("Name").as<nbt::tag_string>().get();
         static const std::map<std::string_view, std::string_view> convert {
-            {"minecraft:stone_slab", "minecraft:smooth_stone_slab"},
-            {"minecraft:sign", "minecraft:oak_sign"},
-            {"minecraft:wall_sign", "minecraft:oak_wall_sign"}};
-        const auto fixed = convert.find(name);
-        nbt->put("Name", (fixed != convert.end() ? fixed->second : name).data());
+            {"stone_slab", "minecraft:smooth_stone_slab"},
+            {"sign", "minecraft:oak_sign"},
+            {"wall_sign", "minecraft:oak_wall_sign"}};
+        if (const auto fixed = convert.find(name);
+            fixed != convert.end()) {
+            state->name = fixed->second;
+        }
     }
 
     if (majorVersion < 3) {
-        const auto name = nbt->at("Name").as<nbt::tag_string>().get();
-        static const auto wallFix = [](std::unique_ptr<nbt::tag_compound>& tag) -> void {
-            auto& properties = tag->at("Properties").as<nbt::tag_compound>();
+        static const auto wallFix = [](nbt::tag_compound& properties) -> void {
             properties.put("north", properties.at("north").as<nbt::tag_string>().get() == "true" ? "low" : "none");
             properties.put("south", properties.at("south").as<nbt::tag_string>().get() == "true" ? "low" : "none");
             properties.put("east", properties.at("east").as<nbt::tag_string>().get() == "true" ? "low" : "none");
             properties.put("west", properties.at("west").as<nbt::tag_string>().get() == "true" ? "low" : "none");
         };
-        static const std::map<std::string_view, std::function<void(std::unique_ptr<nbt::tag_compound>&)>> convert {
-            {"minecraft:jigsaw", [](std::unique_ptr<nbt::tag_compound>& tag) {
-                auto& properties = tag->at("Properties").as<nbt::tag_compound>();
+        static const std::map<std::string_view, std::function<void(nbt::tag_compound&)>> convert {
+            {"jigsaw", [](nbt::tag_compound& properties) {
                 const auto facing = properties.at("facing").as<nbt::tag_string>().get();
                 properties.erase("facing");
                 static const std::map<std::string_view, std::string_view> convert {
@@ -106,8 +105,7 @@ void xaero::convertNBT(std::unique_ptr<nbt::tag_compound> &nbt, const std::int16
 
                 properties.put("orientation", convert.at(facing).data());
             }},
-            {"minecraft:redstone_wire", [](std::unique_ptr<nbt::tag_compound>& tag) {
-                auto& properties = tag->at("Properties").as<nbt::tag_compound>();
+            {"redstone_wire", [](nbt::tag_compound& properties) {
                 auto& north = properties.at("north").as<nbt::tag_string>().get();
                 auto& south = properties.at("south").as<nbt::tag_string>().get();
                 auto& east = properties.at("east").as<nbt::tag_string>().get();
@@ -122,65 +120,62 @@ void xaero::convertNBT(std::unique_ptr<nbt::tag_compound> &nbt, const std::int16
                 properties.put("west",
                                west.empty() ? (north.empty() && south.empty() ? "side" : "none") : west);
             }},
-            {"minecraft:andesite_wall", wallFix},
-            {"minecraft:brick_wall", wallFix},
-            {"minecraft:cobblestone_wall", wallFix},
-            {"minecraft:diorite_wall", wallFix},
-            {"minecraft:end_stone_brick_wall", wallFix},
-            {"minecraft:granite_wall", wallFix},
-            {"minecraft:mossy_cobblestone_wall", wallFix},
-            {"minecraft:mossy_stone_brick_wall", wallFix},
-            {"minecraft:nether_brick_wall", wallFix},
-            {"minecraft:prismarine_wall", wallFix},
-            {"minecraft:red_nether_brick_wall", wallFix},
-            {"minecraft:red_sandstone_wall", wallFix},
-            {"minecraft:sandstone_wall", wallFix},
-            {"minecraft:stone_brick_wall", wallFix}
+            {"andesite_wall", wallFix},
+            {"brick_wall", wallFix},
+            {"cobblestone_wall", wallFix},
+            {"diorite_wall", wallFix},
+            {"end_stone_brick_wall", wallFix},
+            {"granite_wall", wallFix},
+            {"mossy_cobblestone_wall", wallFix},
+            {"mossy_stone_brick_wall", wallFix},
+            {"nether_brick_wall", wallFix},
+            {"prismarine_wall", wallFix},
+            {"red_nether_brick_wall", wallFix},
+            {"red_sandstone_wall", wallFix},
+            {"sandstone_wall", wallFix},
+            {"stone_brick_wall", wallFix}
         };
 
         if (const auto converter = convert.find(name);
             converter != convert.end()) {
 
-            converter->second(nbt);
+            converter->second(state->properties);
         }
     }
 
     if (majorVersion < 5) {
-        const auto name = nbt->at("Name").as<nbt::tag_string>().get();
-        static const std::map<std::string_view, std::function<void(std::unique_ptr<nbt::tag_compound>&)>> convert {
-            {"minecraft:cauldron",  [](std::unique_ptr<nbt::tag_compound>& tag) {
-                auto& properties = tag->at("Properties").as<nbt::tag_compound>();
-                if (properties.size() == 0) return;
+        static const std::map<std::string_view, std::function<void(BlockState*)>> convert {
+            {"cauldron",  [](BlockState* tag) {
 
-                if (!properties.has_key("level") || tag->at("level").as<nbt::tag_string>().get() == "0") {
-                    tag->erase("Properties");
+                if (tag->properties.size() == 0) return;
+
+                if (!tag->properties.has_key("level")) {
+                    tag->properties.clear();
                 } else {
-                    tag->put("Name", "minecraft:water_cauldron");
+                    tag->name = "water_cauldron";
                 }
             }},
-            {"minecraft:grass_path",  [](std::unique_ptr<nbt::tag_compound>& tag) {
-                tag->put("Name", "minecraft:dirt_path");
+            {"grass_path",  [](BlockState* tag) {
+                tag->name = "dirt_path";
             }}
         };
 
         if (const auto converter = convert.find(name);
             converter != convert.end()) {
 
-            converter->second(nbt);
+            converter->second(state);
         }
     }
 
     if (majorVersion < 7) {
-        if (const auto name = nbt->at("Name").as<nbt::tag_string>().get();
-            name == "minecraft:creaking_heart") {
+        if (name == "creaking_heart") {
 
-            if (auto& properties = nbt->at("Properties").as<nbt::tag_compound>();
-                properties.size() > 0) {
+            if (state->properties.size() > 0) {
 
-                if (properties.has_key("active")) {
-                    const auto& active = properties.at("active").as<nbt::tag_string>().get();
-                    properties.erase("active");
-                    properties.insert("creaking_heart_state", active == "true" ? "awake" : "uprooted");
+                if (state->properties.has_key("active")) {
+                    const auto& active = state->properties.at("active").as<nbt::tag_string>().get();
+                    state->properties.erase("active");
+                    state->properties.insert("creaking_heart_state", active == "true" ? "awake" : "uprooted");
                 }
             }
         }

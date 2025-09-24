@@ -13,7 +13,7 @@ namespace xaero {
 
     std::string_view getBiomeFromID(std::uint32_t biomeID);
 
-    void convertNBT(std::unique_ptr<nbt::tag_compound>& nbt, std::int16_t majorVersion);
+    void convertNBT(BlockState* state, std::uint16_t majorVersion);
 
     const BlockState* getStateFromID(std::uint32_t stateID);
 

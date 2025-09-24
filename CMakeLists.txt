@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.31.0)
 set(CMAKE_CXX_STANDARD 23)
-project(XaerosMapFormat VERSION 0.1.1 DESCRIPTION "library for parsing XaerosMap data and rendering it to images")
+project(XaerosMapFormat VERSION 0.2.0 DESCRIPTION "library for parsing XaerosMap data and rendering it to images")
 
 option(XAERO_BUILD_TESTS "builds catch2 tests" ON)
 option(XAERO_GENERATE_RESOURCES "generates minecraft lookup tables for colors and names, requires java and python" ON)
