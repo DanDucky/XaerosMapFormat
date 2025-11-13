@@ -6,11 +6,11 @@
 #include <ranges>
 
 xaero::Map::Map() : unordered_map(), lookups(
-#ifdef XAERO_DEFAULT_LOOKUPS
+                    #ifdef XAERO_DEFAULT_LOOKUPS
                         &defaultLookupPack
-#else
-nullptr
-#endif
+                    #else
+                        nullptr
+                    #endif
                     ) {
 }
 
@@ -26,27 +26,30 @@ const xaero::LookupPack * xaero::Map::getLookups() const {
     return lookups;
 }
 
-void xaero::Map::addRegion(const std::filesystem::path &file, std::int32_t regionX, std::int32_t regionZ,
-                           const MergeType merge) {
+void xaero::Map::addRegion(const std::filesystem::path &file, const MergeType merge, std::int32_t regionX, std::int32_t regionZ) {
     if (regionX == std::numeric_limits<std::int32_t>::min() || regionZ == std::numeric_limits<std::int32_t>::min()) {
-        const auto stem = file.stem().string();
+        const std::string_view stem {file.stem().c_str()};
         const auto split = stem.find_first_of('_');
 
-        std::from_chars(stem.data(), stem.data() + split, regionX);
-        std::from_chars(stem.data() + split + 1, stem.data() + stem.size(), regionZ);
+        if (split == std::string_view::npos) {
+            throw std::out_of_range(std::format("could not parse file name for region pos: {}", stem));
+        }
+
+        std::from_chars(stem.data(), &stem.at(split), regionX);
+        std::from_chars(&stem.at(split + 1), &stem.back(), regionZ);
     }
-    addRegion(parseRegion(file), regionX, regionZ, merge);
+    addRegion(parseRegion(file), merge, regionX, regionZ);
 }
 
-void xaero::Map::addRegion(const std::string_view &data, const std::int32_t regionX, const std::int32_t regionZ, const MergeType merge) {
-    addRegion(parseRegion(data), regionX, regionZ, merge);
+void xaero::Map::addRegion(const std::string_view &data, const MergeType merge, const std::int32_t regionX, const std::int32_t regionZ) {
+    addRegion(parseRegion(data), merge, regionX, regionZ);
 }
 
-void xaero::Map::addRegion(std::istream &data, const std::int32_t regionX, const std::int32_t regionZ, const MergeType merge) {
-    addRegion(parseRegion(data), regionX, regionZ, merge);
+void xaero::Map::addRegion(std::istream &data, const MergeType merge, const std::int32_t regionX, const std::int32_t regionZ) {
+    addRegion(parseRegion(data), merge, regionX, regionZ);
 }
 
-void xaero::Map::addRegion(Region &&region, const std::int32_t regionX, const std::int32_t regionZ, const MergeType merge) {
+void xaero::Map::addRegion(Region &&region, const MergeType merge, const std::int32_t regionX, const std::int32_t regionZ) {
     const auto contained = find({regionX, regionZ});
 
     if (contained == end()) {

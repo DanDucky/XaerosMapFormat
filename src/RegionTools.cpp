@@ -47,9 +47,9 @@ namespace xaero {
     }; // the names here are GUESSES and probably incorrect, thank Xaero for using magic numbers everywhere and then not providing source code with comments
 
     inline const nbt::tag_compound* getFullProperties(const BlockState& state, const LookupPack* lookups) {
-        const auto containedBlock = lookups->stateLookup.find(state.strippedName());
+        const auto containedBlock = lookups->stateLookup->find(state.strippedName());
 
-        if (containedBlock == lookups->stateLookup.end()) return &stateIDLookup[0].front().properties; // return air if block doesn't exist
+        if (containedBlock == lookups->stateLookup->end()) return &stateIDLookup[0].front().properties; // return air if block doesn't exist
 
         const auto containedProperties = containedBlock->second.find(state.properties);
 
@@ -169,7 +169,7 @@ namespace xaero {
                                 pixel.height |= static_cast<std::uint16_t>(parameters.getNextBits(4)) << 8;
                                 // converting 12 bit signed to 16 bit signed
                                 pixel.height &= 0x0FFF; // mask out garbage
-                                if (pixel.height & 0x8000) { // check if negative, then flip the remaining bits
+                                if (pixel.height & 0x0800) { // check if negative, then flip the remaining bits
                                     pixel.height |= 0xF000;
                                 }
                             }
@@ -367,8 +367,8 @@ namespace xaero {
                 if (!region[tileX][tileZ].isPopulated()) continue;
 
                 BitWriter<std::uint8_t> coordinates;
-                coordinates.writeNext(tileX, 4);
                 coordinates.writeNext(tileZ, 4);
+                coordinates.writeNext(tileX, 4);
 
                 stream.write(coordinates); // tile chunk coordinates
 
@@ -385,8 +385,8 @@ namespace xaero {
                             for (auto& pixel : pixelRow) {
                                 BitWriter<std::uint32_t> parameters;
 
-                                auto state = pixel.getState();
-                                const bool isGrass = state->isName("grass_block");
+                                auto& state = pixel.getState();
+                                const bool isGrass = state.isName("grass_block");
 
                                 parameters.writeNext(!isGrass, 1);
                                 parameters.writeNext(pixel.hasOverlays(), 1);
@@ -401,7 +401,7 @@ namespace xaero {
                                 bool stateInPalette = isGrass;
                                 std::size_t statePaletteIndex = 0;
                                 if (!isGrass) {
-                                    const auto found = findStateInPalette(state);
+                                    const auto found = findStateInPalette(&state);
 
                                     stateInPalette = found.has_value();
                                     if (found.has_value()) {
@@ -417,7 +417,7 @@ namespace xaero {
                                 if (pixel.biome.has_value()) {
                                     biome = pixel.getBiome().value();
 
-                                    if (const auto found = std::ranges::find(biomePalette.begin(), biomePalette.end(), biome);
+                                    if (const auto found = std::ranges::find(biomePalette, biome);
                                         found == biomePalette.end()) {
 
                                         biomeInPalette = false;
@@ -438,9 +438,9 @@ namespace xaero {
                                     if (stateInPalette) {
                                         stream.write<std::uint32_t>(statePaletteIndex);
                                     } else {
-                                        writeNBT(stream, state, lookups);
+                                        writeNBT(stream, &state, lookups);
 
-                                        statePalette.push_back(state);
+                                        statePalette.push_back(&state);
                                     }
                                 }
 
@@ -454,8 +454,8 @@ namespace xaero {
                                     for (const auto& overlay : pixel.overlays) {
                                         BitWriter<std::uint32_t> overlayParameters;
 
-                                        const auto overlayState = overlay.getState();
-                                        const bool isWater = overlayState->isName("water");
+                                        const auto& overlayState = overlay.getState();
+                                        const bool isWater = overlayState.isName("water");
 
                                         overlayParameters.writeNext(!isWater, 1);
                                         overlayParameters.writeNext(false, 1); // legacy opacity
@@ -467,7 +467,7 @@ namespace xaero {
                                         bool overlayStateInPalette = isWater;
                                         std::size_t overlayStatePaletteIndex = 0;
                                         if (!isWater) {
-                                            const auto found = findStateInPalette(state);
+                                            const auto found = findStateInPalette(&overlayState);
                                             overlayStateInPalette = found.has_value();
                                             if (found.has_value()) {
                                                 overlayStatePaletteIndex = found.value();
@@ -482,9 +482,9 @@ namespace xaero {
                                             if (overlayStateInPalette) {
                                                 stream.write<std::uint32_t>(overlayStatePaletteIndex);
                                             } else {
-                                                writeNBT(stream, state, lookups);
+                                                writeNBT(stream, &overlayState, lookups);
 
-                                                statePalette.push_back(state);
+                                                statePalette.push_back(&overlayState);
                                             }
                                         }
                                     }
@@ -626,8 +626,8 @@ namespace xaero {
         RegionImage::Pixel color;
         TintIndex tint;
 
-        if (const auto properties = lookups->stateLookup.find(state->strippedName());
-            properties != lookups->stateLookup.end()) {
+        if (const auto properties = lookups->stateLookup->find(state->strippedName());
+            properties != lookups->stateLookup->end()) {
 
             const auto& pack = properties->second.at(state->properties);
             color = pack.color;
@@ -700,15 +700,15 @@ namespace xaero {
 
                                 const auto biome = pixel.getBiome().value_or("plains");
 
-                                const auto foundBiome = lookups->biomeLookup.find(biome);
+                                const auto foundBiome = lookups->biomeLookup->find(biome);
                                 BiomeColors biomeColors;
-                                if (foundBiome != lookups->biomeLookup.end()) {
+                                if (foundBiome != lookups->biomeLookup->end()) {
                                     biomeColors = foundBiome->second;
                                 } else {
-                                    biomeColors = lookups->biomeLookup.at("plains");
+                                    biomeColors = lookups->biomeLookup->at("plains");
                                 }
 
-                                auto color = getStateColor(pixel.getState(), biomeColors, lookups);
+                                auto color = getStateColor(&pixel.getState(), biomeColors, lookups);
 
                                 if (pixel.hasOverlays()) {
                                     struct WideColor {
@@ -722,7 +722,7 @@ namespace xaero {
                                     };
 
                                     for (const auto& overlay : pixel.overlays) {
-                                        auto overlayColor = getStateColor(overlay.getState(), biomeColors, lookups);
+                                        auto overlayColor = getStateColor(&overlay.getState(), biomeColors, lookups);
                                         const float multiplier = static_cast<float>(overlayColor.alpha) / 255.0f;
                                         overlayColor.red = multiplier * overlayColor.red;
                                         overlayColor.green = multiplier * overlayColor.green;

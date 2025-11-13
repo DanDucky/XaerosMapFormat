@@ -2,7 +2,7 @@
 
 #ifdef XAERO_DEFAULT_LOOKUPS
 [[maybe_unused]] const xaero::LookupPack xaero::defaultLookupPack = {
-    defaultStateLookup,
-    defaultBiomeLookup
+    &defaultStateLookup,
+    &defaultBiomeLookup
 };
 #endif

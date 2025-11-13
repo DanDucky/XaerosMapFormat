@@ -26,14 +26,15 @@ namespace xaero {
 
         // coordinates can be defaulted only if the file name contains the coordinates like in the default xaero's map saves
         void addRegion(const std::filesystem::path& file,
+                MergeType merge=MergeType::OVERRIDE,
                 std::int32_t regionX = std::numeric_limits<std::int32_t>::min(),
-                std::int32_t regionZ = std::numeric_limits<std::int32_t>::min(),
-                MergeType merge=MergeType::OVERRIDE);
-        void addRegion(const std::string_view& data, std::int32_t regionX, std::int32_t regionZ, MergeType merge=MergeType::OVERRIDE);
-        void addRegion(std::istream& data, std::int32_t regionX, std::int32_t regionZ, MergeType merge=MergeType::OVERRIDE);
+                std::int32_t regionZ = std::numeric_limits<std::int32_t>::min()
+                );
+        void addRegion(const std::string_view& data, MergeType merge, std::int32_t regionX, std::int32_t regionZ);
+        void addRegion(std::istream& data, MergeType merge, std::int32_t regionX, std::int32_t regionZ);
 
         // so this WILL modify the region passed if MergeType::BELOW, so just don't use the region after adding it :)
-        void addRegion(Region&& region, std::int32_t regionX, std::int32_t regionZ, MergeType merge=MergeType::OVERRIDE);
+        void addRegion(Region&& region, MergeType merge, std::int32_t regionX, std::int32_t regionZ);
 
         void addPixel(Region::TileChunk::Chunk::Pixel&& pixel, std::int32_t x, std::int32_t z);
         void addChunk(Region::TileChunk::Chunk&& chunk, std::int32_t chunkX, std::int32_t chunkZ);

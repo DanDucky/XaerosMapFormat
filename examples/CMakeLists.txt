@@ -19,3 +19,7 @@ if (XAERO_GENERATE_RESOURCES)
     add_executable(XaeroRenderer ${CMAKE_CURRENT_SOURCE_DIR}/XaeroRenderer.cpp)
     target_link_libraries(XaeroRenderer PRIVATE taywee::args stb XaerosMapFormat)
 endif ()
+
+message(STATUS "Configuring XaeroReprocess")
+add_executable(XaeroReprocess ${CMAKE_CURRENT_SOURCE_DIR}/XaeroReprocess.cpp)
+target_link_libraries(XaeroReprocess PRIVATE taywee::args XaerosMapFormat)

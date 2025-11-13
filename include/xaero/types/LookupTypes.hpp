@@ -33,8 +33,7 @@ namespace xaero {
      * @warning these are stored as references! please don't move them while this is in use anywhere
      */
     struct LookupPack {
-        const StateLookup& stateLookup;
-
-        const BiomeLookup& biomeLookup;
+        const StateLookup* stateLookup;
+        const BiomeLookup* biomeLookup;
     };
 } // xaero

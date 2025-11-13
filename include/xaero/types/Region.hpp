@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <variant>
+#include <generator>
 #include <array>
 #include <tag_compound.h>
 #include <vector>
@@ -35,13 +36,13 @@ namespace xaero {
                         std::optional<std::int32_t> opacity;
                         std::variant<std::monostate, BlockState, std::shared_ptr<BlockState>, const BlockState*> state;
 
-                        [[nodiscard]] const BlockState* getState() const;
+                        [[nodiscard]] const BlockState& getState() const;
                     };
                     std::vector<Overlay> overlays;
 
                     [[nodiscard]] bool hasOverlays() const;
 
-                    [[nodiscard]] const BlockState* getState() const;
+                    [[nodiscard]] const BlockState& getState() const;
                     [[nodiscard]] std::optional<std::string_view> getBiome() const;
                 };
 
@@ -95,6 +96,9 @@ namespace xaero {
 
         void mergeMove(Region& other);
         void mergeCopy(const Region& other);
+
+        [[nodiscard]] std::generator<const TileChunk::Chunk::Pixel&> everyPixel() const;
+        [[nodiscard]] std::generator<TileChunk::Chunk::Pixel&> everyPixel();
 
         Region();
 

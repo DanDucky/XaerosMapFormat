@@ -5,17 +5,17 @@
 
 #include <utility>
 
-inline const xaero::BlockState* getStateForUnion(const std::variant<std::monostate, xaero::BlockState, std::shared_ptr<xaero::BlockState>, const xaero::BlockState*>& state) {
+inline const xaero::BlockState& getStateForUnion(const std::variant<std::monostate, xaero::BlockState, std::shared_ptr<xaero::BlockState>, const xaero::BlockState*>& state) {
     if (std::holds_alternative<std::monostate>(state)) {
-        return xaero::getStateFromID(0); // air
+        return *xaero::getStateFromID(0); // air
     }
     if (std::holds_alternative<const xaero::BlockState*>(state)) {
-        return std::get<const xaero::BlockState*>(state);
+        return *std::get<const xaero::BlockState*>(state);
     }
     if (std::holds_alternative<xaero::BlockState>(state)) {
-        return &std::get<xaero::BlockState>(state);
+        return std::get<xaero::BlockState>(state);
     }
-    return std::get<std::shared_ptr<xaero::BlockState>>(state).get();
+    return *std::get<std::shared_ptr<xaero::BlockState>>(state).get();
 }
 
 inline std::string_view getBiomeForUnion(const std::variant<std::shared_ptr<std::string>, std::string, std::string_view>& biome) {
@@ -86,15 +86,15 @@ xaero::Region::TileChunk::Chunk & xaero::Region::TileChunk::Chunk::operator=(Chu
     return *this;
 }
 
-const xaero::BlockState* xaero::Region::TileChunk::Chunk::Pixel::Overlay::getState() const {
+const xaero::BlockState& xaero::Region::TileChunk::Chunk::Pixel::Overlay::getState() const {
     return getStateForUnion(state);
 }
 
 bool xaero::Region::TileChunk::Chunk::Pixel::hasOverlays() const {
-    return overlays.size() > 0;
+    return !overlays.empty();
 }
 
-const xaero::BlockState* xaero::Region::TileChunk::Chunk::Pixel::getState() const {
+const xaero::BlockState& xaero::Region::TileChunk::Chunk::Pixel::getState() const {
     return getStateForUnion(state);
 }
 
@@ -298,6 +298,44 @@ void xaero::Region::mergeCopy(const Region &other) {
                     for (std::uint8_t x = 0; x < 16; x++) {
                         for (std::uint8_t z = 0; z < 16; z++) {
                             thisChunk[x][z] = chunk[x][z];
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+std::generator<const xaero::Region::TileChunk::Chunk::Pixel&> xaero::Region::everyPixel() const {
+    for (std::uint16_t tileChunkX = 0; tileChunkX < 8; tileChunkX++) {
+        for (std::uint16_t tileChunkZ = 0; tileChunkZ < 8; tileChunkZ++) {
+            if (!tileChunks[tileChunkX][tileChunkZ].isPopulated()) continue;
+            for (std::uint16_t chunkX = 0; chunkX < 4; chunkX++) {
+                for (std::uint16_t chunkZ = 0; chunkZ < 4; chunkZ++) {
+                    const TileChunk::Chunk& chunk = tileChunks[tileChunkX][tileChunkZ][chunkX][chunkZ];
+                    if (!chunk.isPopulated()) continue;
+                    for (std::uint8_t x = 0; x < 16; x++) {
+                        for (std::uint8_t z = 0; z < 16; z++) {
+                            co_yield chunk[x][z];
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+std::generator<xaero::Region::TileChunk::Chunk::Pixel&> xaero::Region::everyPixel() {
+    for (std::uint16_t tileChunkX = 0; tileChunkX < 8; tileChunkX++) {
+        for (std::uint16_t tileChunkZ = 0; tileChunkZ < 8; tileChunkZ++) {
+            if (!tileChunks[tileChunkX][tileChunkZ].isPopulated()) continue;
+            for (std::uint16_t chunkX = 0; chunkX < 4; chunkX++) {
+                for (std::uint16_t chunkZ = 0; chunkZ < 4; chunkZ++) {
+                    TileChunk::Chunk& chunk = tileChunks[tileChunkX][tileChunkZ][chunkX][chunkZ];
+                    if (!chunk.isPopulated()) continue;
+                    for (std::uint8_t x = 0; x < 16; x++) {
+                        for (std::uint8_t z = 0; z < 16; z++) {
+                            co_yield chunk[x][z];
                         }
                     }
                 }
