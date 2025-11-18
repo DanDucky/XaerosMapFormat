@@ -124,7 +124,7 @@ namespace xaero {
 
             const std::uint8_t tileZ = coordinates.getNextBits(4);
             const std::uint8_t tileX = coordinates.getNextBits(4);
-            Region::TileChunk& tile = region[tileX][tileZ];
+            TileChunk& tile = region[tileX][tileZ];
             tile.allocateChunks();
             for (auto& chunkRow : *tile.chunks) {
                 for (auto& chunk : chunkRow) {

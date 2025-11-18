@@ -71,7 +71,7 @@ void xaero::Map::addRegion(Region &&region, const MergeType merge, const std::in
     }
 }
 
-void xaero::Map::addPixel(Region::TileChunk::Chunk::Pixel &&pixel, const std::int32_t x, const std::int32_t z) {
+void xaero::Map::addPixel(Pixel &&pixel, const std::int32_t x, const std::int32_t z) {
     std::int32_t regionX = x >> 9;
     std::int32_t regionZ = z >> 9;
 
@@ -83,7 +83,7 @@ void xaero::Map::addPixel(Region::TileChunk::Chunk::Pixel &&pixel, const std::in
         tileChunk.allocateChunks();
         auto& chunk = tileChunk[x >> 4 & 3][z >> 4 & 3];
         chunk.allocateColumns();
-        chunk[x & 15][z & 15] = std::forward<Region::TileChunk::Chunk::Pixel>(pixel);
+        chunk[x & 15][z & 15] = std::forward<Pixel>(pixel);
 
         emplace(std::pair{regionX, regionZ}, std::move(region));
         } else {
@@ -92,11 +92,11 @@ void xaero::Map::addPixel(Region::TileChunk::Chunk::Pixel &&pixel, const std::in
             auto& chunk = tileChunk[x >> 4 & 3][z >> 4 & 3];
             chunk.allocateColumns();
 
-            chunk[x & 15][z & 15] = std::forward<Region::TileChunk::Chunk::Pixel>(pixel);
+            chunk[x & 15][z & 15] = std::forward<Pixel>(pixel);
         }
 }
 
-void xaero::Map::addChunk(Region::TileChunk::Chunk &&chunk, const std::int32_t chunkX, const std::int32_t chunkZ) {
+void xaero::Map::addChunk(Chunk &&chunk, const std::int32_t chunkX, const std::int32_t chunkZ) {
     std::int32_t regionX = chunkX >> 5;
     std::int32_t regionZ = chunkZ >> 5;
 
@@ -106,13 +106,13 @@ void xaero::Map::addChunk(Region::TileChunk::Chunk &&chunk, const std::int32_t c
 
         auto& tileChunk = region[chunkX >> 2 & 7][chunkZ >> 2 & 7];
         tileChunk.allocateChunks();
-        tileChunk[chunkX & 3][chunkZ & 3] = std::forward<Region::TileChunk::Chunk>(chunk);
+        tileChunk[chunkX & 3][chunkZ & 3] = std::forward<Chunk>(chunk);
 
         emplace(std::pair{regionX, regionZ}, std::move(region));
         } else {
             auto& tileChunk = contained->second[chunkX >> 2 & 7][chunkZ >> 2 & 7];
             tileChunk.allocateChunks();
-            tileChunk[chunkX & 3][chunkZ & 3] = std::forward<Region::TileChunk::Chunk>(chunk);
+            tileChunk[chunkX & 3][chunkZ & 3] = std::forward<Chunk>(chunk);
         }
 }
 
@@ -135,7 +135,7 @@ std::vector<std::pair<std::pair<std::int32_t, std::int32_t>, xaero::RegionImage>
     return output;
 }
 
-const xaero::Region::TileChunk::Chunk * xaero::Map::getChunk(const std::int32_t chunkX, const std::int32_t chunkZ) const {
+const xaero::Chunk * xaero::Map::getChunk(const std::int32_t chunkX, const std::int32_t chunkZ) const {
     const auto contained = find({chunkX >> 5, chunkZ >> 5});
 
     if (contained == end()) return nullptr;
@@ -147,7 +147,7 @@ const xaero::Region::TileChunk::Chunk * xaero::Map::getChunk(const std::int32_t 
     return &tileChunk[chunkX & 3][chunkZ & 3];
 }
 
-xaero::Region::TileChunk::Chunk * xaero::Map::getChunk(const std::int32_t chunkX, const std::int32_t chunkZ) {
+xaero::Chunk * xaero::Map::getChunk(const std::int32_t chunkX, const std::int32_t chunkZ) {
     const auto contained = find({chunkX >> 5, chunkZ >> 5});
 
     if (contained == end()) return nullptr;
@@ -159,7 +159,7 @@ xaero::Region::TileChunk::Chunk * xaero::Map::getChunk(const std::int32_t chunkX
     return &tileChunk[chunkX & 3][chunkZ & 3];
 }
 
-const xaero::Region::TileChunk::Chunk::Pixel * xaero::Map::getPixel(const std::int32_t x, const std::int32_t z) const {
+const xaero::Pixel * xaero::Map::getPixel(const std::int32_t x, const std::int32_t z) const {
     const auto contained = find({x >> 9, z >> 9});
 
     if (contained == end()) return nullptr;
@@ -167,7 +167,7 @@ const xaero::Region::TileChunk::Chunk::Pixel * xaero::Map::getPixel(const std::i
     return contained->second[x & 511, z & 511];
 }
 
-xaero::Region::TileChunk::Chunk::Pixel * xaero::Map::getPixel(const std::int32_t x, const std::int32_t z) {
+xaero::Pixel * xaero::Map::getPixel(const std::int32_t x, const std::int32_t z) {
     const auto contained = find({x >> 9, z >> 9});
 
     if (contained == end()) return nullptr;

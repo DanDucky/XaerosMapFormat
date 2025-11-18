@@ -36,17 +36,17 @@ namespace xaero {
         // so this WILL modify the region passed if MergeType::BELOW, so just don't use the region after adding it :)
         void addRegion(Region&& region, MergeType merge, std::int32_t regionX, std::int32_t regionZ);
 
-        void addPixel(Region::TileChunk::Chunk::Pixel&& pixel, std::int32_t x, std::int32_t z);
-        void addChunk(Region::TileChunk::Chunk&& chunk, std::int32_t chunkX, std::int32_t chunkZ);
+        void addPixel(Pixel&& pixel, std::int32_t x, std::int32_t z);
+        void addChunk(Chunk&& chunk, std::int32_t chunkX, std::int32_t chunkZ);
 
         [[nodiscard]] std::optional<RegionImage> generateImage(std::int32_t regionX, std::int32_t regionZ) const;
         [[nodiscard]] std::vector<std::pair<std::pair<std::int32_t, std::int32_t>, RegionImage>> generateImages() const;
 
-        [[nodiscard]] const Region::TileChunk::Chunk* getChunk(std::int32_t chunkX, std::int32_t chunkZ) const;
-        [[nodiscard]] Region::TileChunk::Chunk* getChunk(std::int32_t chunkX, std::int32_t chunkZ);
+        [[nodiscard]] const Chunk* getChunk(std::int32_t chunkX, std::int32_t chunkZ) const;
+        [[nodiscard]] Chunk* getChunk(std::int32_t chunkX, std::int32_t chunkZ);
 
-        [[nodiscard]] const Region::TileChunk::Chunk::Pixel* getPixel(std::int32_t x, std::int32_t z) const;
-        [[nodiscard]] Region::TileChunk::Chunk::Pixel* getPixel(std::int32_t x, std::int32_t z);
+        [[nodiscard]] const Pixel* getPixel(std::int32_t x, std::int32_t z) const;
+        [[nodiscard]] Pixel* getPixel(std::int32_t x, std::int32_t z);
 
         bool writeRegion(std::int32_t regionX, std::int32_t regionZ, const std::filesystem::path& path) const;
         [[nodiscard]] std::string getSerialized(std::int32_t regionX, std::int32_t regionZ) const;

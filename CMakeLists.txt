@@ -13,14 +13,18 @@ add_library(XaerosMapFormat
         ${CMAKE_CURRENT_SOURCE_DIR}/src/util/ByteInputStream.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/util/ByteOutputStream.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/util/StringUtils.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/util/Endianness.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/types/RegionImage.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/types/Region.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/types/LookupTypes.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/types/BlockState.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/types/Overlay.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/types/Pixel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/types/Chunk.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/types/TileChunk.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/lookups/LegacyCompatibility.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/lookups/LegacyCompatibility.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/lookups/BlockLookups.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/util/Endianness.cpp
 )
 
 add_library(Xaero::XaerosMapFormat ALIAS XaerosMapFormat)
