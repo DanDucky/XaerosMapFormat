@@ -27,10 +27,10 @@ namespace xaero {
         RegionImage::Pixel dryFoliage;
     };
 
-    using BiomeLookup = std::map<std::string_view, BiomeColors>;
+    using BiomeLookup = std::unordered_map<std::string_view, BiomeColors>;
 
     /**
-     * @warning these are stored as references! please don't move them while this is in use anywhere
+     * @warning these are stored as pointers! please don't move them while this is in use anywhere
      */
     struct LookupPack {
         const StateLookup* stateLookup;

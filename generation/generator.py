@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Optional
 from itertools import combinations
+from dataclasses import dataclass
 import numpy as np
 
 # this script is a heaping mess...
@@ -18,6 +19,50 @@ BIOME_NAME = "defaultBiomeLookup"
 MODELS_CACHE = {}
 TEXTURES_CACHE = {}
 BLOCKSTATE_CACHE = {}
+
+@dataclass
+class Color :
+    @staticmethod
+    def new(color : tuple):
+        return Color(color[0], color[1], color[2], color[3] if len(color) > 3 else 255)
+
+    red : int
+    green : int
+    blue : int
+    alpha : int = 255
+
+@dataclass
+class BiomeInfo :
+    grass : Color
+    water : Color
+    foliage : Color
+    dry_foliage : Color
+
+@dataclass
+class StateInfo :
+    full_state : dict
+    state : dict
+    color : Color
+    tint : int
+    id : int
+
+@dataclass
+class BlockInfo :
+    states : list
+
+    def remove_id(self, id : int):
+        for state in self.states :
+            if state.id == id :
+                self.states.remove(state)
+                break
+
+    def has_id(self, id : int):
+        for state in self.states :
+            if state.id == id :
+                return True
+
+        return False
+
 
 def load_blockstate (name : str, blockstates : Path=None) -> dict :
     if name not in BLOCKSTATE_CACHE and blockstates is not None:
@@ -161,7 +206,7 @@ def find_first_tag(data, target_key):
     return None
 
 def generate_colors(blocks: dict, client : Path) -> dict :
-    output : dict = {}
+    output : dict = {} # dict of <str (name), Block (list of blockstates)>
     assets = client / "assets" / "minecraft"
 
     blockstates = assets / "blockstates"
@@ -263,56 +308,57 @@ def generate_colors(blocks: dict, client : Path) -> dict :
 
             color = (total_r // pixel_count, total_g // pixel_count, total_b // pixel_count, total_a // pixel_count)
 
-            output[state["id"]] = (color, tint_index)
+            if name not in output :
+                output[name] = BlockInfo([])
+
+            output[name].states.append(StateInfo(state["properties"] if "properties" in state else {}, None, Color(color[0], color[1], color[2], color[3]), tint_index, state["id"]))
     return output
 
 def generate_state_lookup(blocks : dict, colors : dict) -> str :
-    output = {}
     for name, data in blocks.items() :
-        states = []
+        if name not in colors :
+            colors[name] = BlockInfo([StateInfo({}, {}, Color(0, 0, 0, 0), -1, None)])
+        info = colors[name]
 
-        for state in data["states"] :
+        for original_state in data["states"] :
             blockstate = load_blockstate(name.split(":")[1])
             if not blockstate:
+                info.states.remove(next(filter(lambda x: x.id == original_state["id"], info.states), None))
                 continue
 
             if "multipart" in blockstate :
-                if state["id"] not in colors :
+                if not info.has_id(original_state["id"]) :
                     continue
-                states.append(({}, colors[state["id"]])) # this means we're just going to pick the first texture, so ignore states
+                info.states = info.states[:1]
+                info.states[0].state = {}
                 break
 
             if "variants" not in blockstate :
+                info.remove_id(original_state["id"])
                 continue
 
             variants = blockstate["variants"]
 
             if "" in variants :
-                if state["id"] not in colors :
+                if not info.has_id(original_state["id"]) :
                     continue
-                states.append(({}, colors[state["id"]])) # only one variant
+                info.states = info.states[:1]
+                info.states[0].state = {}
                 break
 
-            properties = state["properties"]
-
-            if state["id"] not in colors :
-                continue
-
-            states.append((properties, colors[state["id"]]))
-
-        if len(states) > 0 and len(states[0]) > 0 : # try to compress properties
-            all_properties = states[0][0].keys()
+        if len(info.states) > 0 : # try to compress properties
+            all_properties = info.states[0].full_state.keys()
 
             def can_distinguish_cases(subset : set) :
                 # Group by the selected properties
                 groups = {}
-                for key, value in states:
+                for state in info.states:
 
-                    reduced_key = tuple(sorted((prop, key[prop]) for prop in subset))
+                    reduced_key = tuple(sorted((prop, state.full_state[prop]) for prop in subset))
 
                     if reduced_key not in groups:
                         groups[reduced_key] = set()
-                    groups[reduced_key].add(value)
+                    groups[reduced_key].add((state.color.red, state.color.green, state.color.blue, state.color.alpha, state.tint))
 
                 # Check if any group has multiple different values
                 for group_values in groups.values():
@@ -325,36 +371,44 @@ def generate_state_lookup(blocks : dict, colors : dict) -> str :
             for size in range(0, len(all_properties) + 1) :
                 for subset in combinations(all_properties, size) :
                     if can_distinguish_cases(subset) :
-                        old_states = states.copy()
-
                         states = []
                         used_keys = []
-                        for key, value in old_states :
-                            new_key = {property : key[property] for property in subset}
+                        for state in info.states :
+                            new_key = {property : state.full_state[property] for property in subset}
                             if new_key in used_keys :
                                 continue
                             used_keys.append(new_key)
-                            states.append((new_key, value))
+                            states.append(StateInfo(state.full_state, new_key, state.color, state.tint, state.id))
+
+                        info.states = states
                         break
                 else :
                     continue
                 break
 
-        if len(states) == 0 :
-            states.append(({}, ((0, 0, 0, 0), -1)))
-        output[str(name).split(":")[1]] = states
+        if len(info.states) == 0 :
+            info.states.append(StateInfo({}, {}, Color(0, 0, 0, 0), -1, None))
 
     # I hate this so much but I can't bring myself to make some nasty string builder situation and the conversion only works for this "type" so I don't wanna make a generic dict to map function
-    return ",\n".join([f"{{\"{block}\",{{{",\n".join([f"{{nbt::tag_compound{{{",".join([f"{{\"{property}\",\"{property_value}\"}}" for property, property_value in key.items()])}}},{{{{{value[0][0]},{value[0][1]},{value[0][2]},{value[0][3]}}},{value[1]}}}}}" for key, value in states])}}}}}" for block, states in output.items()])
+    return ",\n".join([f"{{\"{name.split(":")[1]}\","
+                            f"{{"
+                                f"{",\n".join([f"{{nbt::tag_compound{{{",".join([f"{{\"{property}\", \"{property_value}\"}}" for property, property_value in state.state.items()])}}},"
+                                                    f"{{"
+                                                        f"{{{state.color.red},{state.color.green},{state.color.blue},{state.color.alpha}}},"
+                                                        f"{state.tint}"
+                                                    f"}}"
+                                               f"}}" for state in block.states])}"
+                            f"}}"
+                       f"}}" for name, block in colors.items()])
 
-def color_from_int (color : int) -> tuple :
+def color_from_int (color : int) -> Color :
     a = color >> 24
     r = color >> 16 & 0xFF
     g = color >> 8 & 0xFF
     b = color & 0xFF
-    return r, g, b, a
+    return Color(r, g, b, a)
 
-def get_biome_colors(biome : dict, grass : Image.Image, foliage : Image.Image, dry_foliage : Image.Image) -> tuple :
+def get_biome_colors(biome : dict, grass : Image.Image, foliage : Image.Image, dry_foliage : Image.Image) -> BiomeInfo :
     effects = biome["effects"]
     water_color = color_from_int(effects["water_color"])
 
@@ -365,17 +419,17 @@ def get_biome_colors(biome : dict, grass : Image.Image, foliage : Image.Image, d
     if "grass_color" in effects :
         grass_color = color_from_int(effects["grass_color"])
     else:
-        grass_color = grass.getpixel((temperature, humidity))
+        grass_color = Color.new(grass.getpixel((temperature, humidity)))
     if "foliage_color" in effects :
         foliage_color = color_from_int(effects["foliage_color"])
     else:
-        foliage_color = foliage.getpixel((temperature, humidity))
+        foliage_color = Color.new(foliage.getpixel((temperature, humidity)))
     if "dry_foliage_color" in effects :
         dry_foliage_color = color_from_int(effects["dry_foliage_color"])
     else:
-        dry_foliage_color = dry_foliage.getpixel((temperature, humidity))
+        dry_foliage_color = Color.new(dry_foliage.getpixel((temperature, humidity)))
 
-    return grass_color, water_color, foliage_color, dry_foliage_color
+    return BiomeInfo(grass_color, water_color, foliage_color, dry_foliage_color)
 
 def generate_biome_colors(client : Path) -> str :
     biome_dir = client / "data" / "minecraft" / "worldgen" / "biome"
@@ -388,10 +442,12 @@ def generate_biome_colors(client : Path) -> str :
     for biome_file in biome_files :
         with open(biome_file, "r") as file:
             data = json.load(file)
+        biome_colors = get_biome_colors(data, load_texture("grass", colormaps).convert("RGB"), load_texture("foliage", colormaps).convert("RGB"), load_texture("dry_foliage", colormaps).convert("RGB"))
+        biomes.append((biome_file.name.split(".")[0], biome_colors))
 
-        biomes.append((biome_file.name.split(".")[0], get_biome_colors(data, load_texture("grass", colormaps).convert("RGB"), load_texture("foliage", colormaps).convert("RGB"), load_texture("dry_foliage", colormaps).convert("RGB"))))
-
-    return ",\n".join([f"{{\"{biome}\",{NAMESPACE}::BiomeColors{{{",".join([f"{{{color[0]},{color[1]},{color[2]},{color[3] if len(color) > 3 else 255}}}" for color in colors])}}}}}" for biome, colors in biomes])
+    return ",\n".join([f"{{\"{biome}\",{NAMESPACE}::BiomeColors{{"
+                            f"{",".join([f"{{{color.red},{color.green},{color.blue},{color.alpha}}}" for color in [colors.grass, colors.water, colors.foliage, colors.dry_foliage]])}"
+                       f"}}}}" for biome, colors in biomes])
 
 def generate_lookups(file_names : Path, blocks : dict, colors : dict, biomes : str) -> dict:
     output = []
