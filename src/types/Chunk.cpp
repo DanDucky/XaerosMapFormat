@@ -79,7 +79,7 @@ void xaero::Chunk::allocateColumns() {
 }
 
 void xaero::Chunk::deallocateColumns() noexcept {
-    delete[] reinterpret_cast<Pixel*>(pixels);
+    delete pixels;
     pixels = nullptr;
 }
 
