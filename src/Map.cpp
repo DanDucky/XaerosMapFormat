@@ -36,7 +36,7 @@ void xaero::Map::addRegion(const std::filesystem::path &file, const MergeType me
         }
 
         std::from_chars(stem.data(), &stem.at(split), regionX);
-        std::from_chars(&stem.at(split + 1), &stem.back(), regionZ);
+        std::from_chars(&stem.at(split + 1), stem.end(), regionZ);
     }
     addRegion(parseRegion(file), merge, regionX, regionZ);
 }
