@@ -401,7 +401,10 @@ def generate_state_lookup(blocks : dict, colors : dict) -> str :
                             f"}}"
                        f"}}" for name, block in colors.items()])
 
-def color_from_int (color : int) -> Color :
+def get_color (color : int | str) -> Color :
+    if isinstance(color, str) :
+        color = int(color[1:], 16)
+
     a = color >> 24
     r = color >> 16 & 0xFF
     g = color >> 8 & 0xFF
@@ -410,22 +413,22 @@ def color_from_int (color : int) -> Color :
 
 def get_biome_colors(biome : dict, grass : Image.Image, foliage : Image.Image, dry_foliage : Image.Image) -> BiomeInfo :
     effects = biome["effects"]
-    water_color = color_from_int(effects["water_color"])
+    water_color = get_color(effects["water_color"])
 
     temperature = (np.clip(biome["temperature"], 0.0, 1.0))
     humidity = (1.0 - (np.clip(biome["downfall"], 0.0, 1.0)) * temperature) * 255
     temperature = (1.0 - temperature) * 255
 
     if "grass_color" in effects :
-        grass_color = color_from_int(effects["grass_color"])
+        grass_color = get_color(effects["grass_color"])
     else:
         grass_color = Color.new(grass.getpixel((temperature, humidity)))
     if "foliage_color" in effects :
-        foliage_color = color_from_int(effects["foliage_color"])
+        foliage_color = get_color(effects["foliage_color"])
     else:
         foliage_color = Color.new(foliage.getpixel((temperature, humidity)))
     if "dry_foliage_color" in effects :
-        dry_foliage_color = color_from_int(effects["dry_foliage_color"])
+        dry_foliage_color = get_color(effects["dry_foliage_color"])
     else:
         dry_foliage_color = Color.new(dry_foliage.getpixel((temperature, humidity)))
 
