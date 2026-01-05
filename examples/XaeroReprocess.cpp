@@ -39,7 +39,6 @@ int main(const int argc, char** argv) {
             auto region = xaero::parseRegion(inputPath);
 
             for (auto& pixel : region.everyPixel()) {
-                pixel.overlays.clear();
             }
 
             xaero::writeRegion(region, (outputRoot / (inputPath.stem().string() + "_reprocessed")).replace_extension(".zip"), nullptr);
@@ -48,7 +47,6 @@ int main(const int argc, char** argv) {
         auto region = xaero::parseRegion(input);
 
         for (auto& pixel : region.everyPixel()) {
-            pixel.overlays.clear();
         }
 
         xaero::writeRegion(region, (outputRoot / (input.stem().string() + "_reprocessed")).replace_extension(".zip"), nullptr);

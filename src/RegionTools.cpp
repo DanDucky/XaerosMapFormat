@@ -253,7 +253,7 @@ namespace xaero {
                                                 statePalette.emplace_back(std::make_shared<BlockState>(std::move(*nbt.second)));
                                                 overlay.state = statePalette.back();
                                             } else {
-                                                overlay.state = statePalette[stream.getNext<std::int32_t>()];
+                                                overlay.state = statePalette[stream.getNext<std::uint32_t>()];
                                             }
                                         }
                                     }
@@ -478,6 +478,7 @@ namespace xaero {
                                         if (overlay.opacity) {
                                             overlayParameters.writeNext(overlay.opacity.value(), 4);
                                         }
+                                        stream.write(overlayParameters);
                                         if (!isWater) {
                                             if (overlayStateInPalette) {
                                                 stream.write<std::uint32_t>(overlayStatePaletteIndex);

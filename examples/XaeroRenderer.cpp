@@ -8,11 +8,10 @@
 #include <stb_image_write.h>
 
 #include <xaero/RegionTools.hpp>
-#include <xaero/types/Region.hpp>
+
+#include <thread_pool/thread_pool.h>
 
 xaero::RegionImage getImage (const std::filesystem::path& data) {
-    std::cout << "Getting: " << data.string() << "\n";
-
     return xaero::generateImage(data);
 }
 
@@ -52,12 +51,16 @@ int main(int argc, char** argv) {
 
     if (const std::filesystem::path input(*files);
         is_directory(input)) {
+        dp::thread_pool pool{std::thread::hardware_concurrency()};
         for (const auto& file : std::filesystem::directory_iterator(input)) {
             const auto& inputPath = file.path();
             if (file.is_directory() || inputPath.extension() != ".zip") continue;
 
-            writeImage(getImage(inputPath), outputRoot / inputPath.filename().replace_extension("png") );
+            pool.enqueue_detach([=] {
+                writeImage(getImage(inputPath), outputRoot / inputPath.filename().replace_extension("png") );
+            });
         }
+        pool.wait_for_tasks();
     } else {
         writeImage(getImage(input), outputRoot / input.filename().replace_extension("png") );
     }
