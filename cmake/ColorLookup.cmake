@@ -21,8 +21,6 @@ if(NOT EXISTS ${VENV_PYTHON})
     endif()
 endif()
 
-# install pillow
-
 execute_process(
         COMMAND ${VENV_PYTHON} -m pip install Pillow argparse numpy
         RESULT_VARIABLE PIP_RESULT

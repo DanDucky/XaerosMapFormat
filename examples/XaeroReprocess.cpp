@@ -8,7 +8,7 @@ int main(const int argc, char** argv) {
     parser.ShortPrefix("-");
     parser.LongPrefix("--");
     args::HelpFlag help(parser, "help", "Displays this help menu", {'h', "help"});
-    args::ValueFlag<std::string> files(parser, "input", "Input file or directory", {'i', "input"});
+    args::ValueFlag<std::string> files(parser, "input", "Input file", {'i', "input"});
     args::ValueFlag<std::string> output(parser, "output", "Output directory", {'o', "output"});
 
     try {
@@ -30,25 +30,9 @@ int main(const int argc, char** argv) {
 
     const std::filesystem::path outputRoot(*output);
 
-    if (const std::filesystem::path input(*files);
-        is_directory(input)) {
-        for (const auto& file : std::filesystem::directory_iterator(input)) {
-            const auto& inputPath = file.path();
-            if (file.is_directory() || inputPath.extension() != ".zip") continue;
+    const std::filesystem::path input{files.Get()};
 
-            auto region = xaero::parseRegion(inputPath);
+    const auto region = xaero::parseRegion(input);
 
-            for (auto& pixel : region.everyPixel()) {
-            }
-
-            xaero::writeRegion(region, (outputRoot / (inputPath.stem().string() + "_reprocessed")).replace_extension(".zip"), nullptr);
-        }
-    } else {
-        auto region = xaero::parseRegion(input);
-
-        for (auto& pixel : region.everyPixel()) {
-        }
-
-        xaero::writeRegion(region, (outputRoot / (input.stem().string() + "_reprocessed")).replace_extension(".zip"), nullptr);
-    }
+    xaero::writeRegion(region, (outputRoot / (input.stem().string() + "_reprocessed")).replace_extension(".zip"), nullptr);
 }

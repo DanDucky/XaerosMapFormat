@@ -28,6 +28,10 @@ if (XAERO_GENERATE_RESOURCES)
     message(STATUS "Configuring XaeroRenderer")
     add_executable(XaeroRenderer ${CMAKE_CURRENT_SOURCE_DIR}/XaeroRenderer.cpp)
     target_link_libraries(XaeroRenderer PRIVATE taywee::args stb XaerosMapFormat thread-pool)
+
+    message(STATUS "Configuring XaeroCoordman")
+    add_executable(XaeroCoordman ${CMAKE_CURRENT_SOURCE_DIR}/XaeroCoordman.cpp)
+    target_link_libraries(XaeroCoordman PRIVATE taywee::args stb XaerosMapFormat thread-pool)
 endif ()
 
 message(STATUS "Configuring XaeroReprocess")
