@@ -5,6 +5,7 @@
 #include <nbt_tags.h>
 
 #include "RegionImage.hpp"
+#include "BlockState.hpp"
 
 namespace xaero {
     // some types are only available with XAERO_DEFAULT_LOOKUPS! these are types which are customized for that option!
@@ -13,12 +14,7 @@ namespace xaero {
         [[nodiscard]] bool operator()(const nbt::tag_compound& lhs, const nbt::tag_compound& rhs) const noexcept;
     };
 
-    struct StatePack {
-        RegionImage::Pixel color;
-        std::int32_t tintIndex = -1;
-    };
-
-    using StateLookup = std::unordered_map<std::string_view, std::map<nbt::tag_compound, StatePack, CompoundCompare>>;
+    using StateLookup = std::unordered_map<std::string_view, std::map<nbt::tag_compound, BlockState, CompoundCompare>>;
 
     struct BiomeColors {
         RegionImage::Pixel grass;

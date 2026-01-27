@@ -18,8 +18,8 @@ namespace xaero {
         // the rationale for this being optional instead of having a std::monostate is that xaero "officially" might not have a biome, but it ALWAYS has a state
         std::optional<std::variant<std::shared_ptr<std::string>, std::string, std::string_view>> biome;
 
-        // std::monostate is default and "nullopt"
-        std::variant<std::monostate, BlockState, std::shared_ptr<BlockState>, const BlockState*> state;
+        // nullptr is default / air
+        std::variant<const BlockState*, std::shared_ptr<BlockState>> state = nullptr;
 
         std::vector<Overlay> overlays;
 

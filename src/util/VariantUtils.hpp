@@ -6,15 +6,13 @@
 #include "../lookups/LegacyCompatibility.hpp"
 
 namespace xaero {
-    inline const BlockState& getStateForUnion(const std::variant<std::monostate, BlockState, std::shared_ptr<BlockState>, const BlockState*>& state) {
-        if (std::holds_alternative<std::monostate>(state)) {
-            return *getStateFromID(0); // air
-        }
+    inline const BlockState& getStateForUnion(const std::variant<const BlockState*, std::shared_ptr<BlockState>>& state) {
         if (std::holds_alternative<const BlockState*>(state)) {
-            return *std::get<const BlockState*>(state);
-        }
-        if (std::holds_alternative<BlockState>(state)) {
-            return std::get<BlockState>(state);
+            const auto out = std::get<const BlockState*>(state);
+            if (out == nullptr) {
+                return *getStateFromID(0); // air
+            }
+            return *out;
         }
         return *std::get<std::shared_ptr<BlockState>>(state).get();
     }

@@ -19,7 +19,7 @@ xaero::BlockState::BlockState(nbt::tag_compound nbt) :
     properties(nbt.has_key("Properties") ? std::move(nbt.at("Properties").as<nbt::tag_compound>()) : nbt::tag_compound{}) {
 }
 
-xaero::BlockState::BlockState(std::string name, nbt::tag_compound properties) : name(std::move(name)), properties(std::move(properties)) {
+xaero::BlockState::BlockState(std::string name, nbt::tag_compound properties, const std::optional<ColorInfo> color) : name(std::move(name)), properties(std::move(properties)), color(color) {
 }
 
 bool xaero::BlockState::operator==(const BlockState &other) const {

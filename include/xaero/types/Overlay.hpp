@@ -11,7 +11,9 @@ namespace xaero {
     struct Overlay {
         std::uint8_t light;
         std::optional<std::int32_t> opacity;
-        std::variant<std::monostate, BlockState, std::shared_ptr<BlockState>, const BlockState*> state;
+
+        // nullptr is default / air
+        std::variant<const BlockState*, std::shared_ptr<BlockState>> state = nullptr;
 
         [[nodiscard]] const BlockState& getState() const;
     };

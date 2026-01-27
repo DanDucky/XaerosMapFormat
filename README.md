@@ -49,7 +49,8 @@ All of these dependencies are managed and downloaded by CPM in the provided CMak
 - [ztd.text](https://github.com/soasis/text)
 - [minizip-ng](https://github.com/zlib-ng/minizip-ng)
 - [args](https://github.com/Taywee/args) (if `XAERO_BUILD_EXAMPLES`)
-- [stb_image_write](https://github.com/nothings/stb) (if `XAERO_BUILD_EXAMPLES`)
+- [stb](https://github.com/nothings/stb) (if `XAERO_BUILD_EXAMPLES`)
+- [thread-pool](https://github.com/DeveloperPaul123/thread-pool) (if `XAERO_BUILD_EXAMPLES`)
 
 ## Versioning
 

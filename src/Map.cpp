@@ -38,15 +38,15 @@ void xaero::Map::addRegion(const std::filesystem::path &file, const MergeType me
         std::from_chars(stem.data(), &stem.at(split), regionX);
         std::from_chars(&stem.at(split + 1), stem.end(), regionZ);
     }
-    addRegion(parseRegion(file), merge, regionX, regionZ);
+    addRegion(parseRegion(file, lookups), merge, regionX, regionZ);
 }
 
 void xaero::Map::addRegion(const std::string_view &data, const MergeType merge, const std::int32_t regionX, const std::int32_t regionZ) {
-    addRegion(parseRegion(data), merge, regionX, regionZ);
+    addRegion(parseRegion(data, lookups), merge, regionX, regionZ);
 }
 
 void xaero::Map::addRegion(std::istream &data, const MergeType merge, const std::int32_t regionX, const std::int32_t regionZ) {
-    addRegion(parseRegion(data), merge, regionX, regionZ);
+    addRegion(parseRegion(data, lookups), merge, regionX, regionZ);
 }
 
 void xaero::Map::addRegion(Region &&region, const MergeType merge, const std::int32_t regionX, const std::int32_t regionZ) {

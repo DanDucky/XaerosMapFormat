@@ -81,7 +81,7 @@ namespace xaero {
         nbtWriter.write_type(nbt::tag_type::End);
     }
 
-    Region parseRegion(std::istream &data) {
+    Region parseRegion(std::istream &data, const LookupPack* lookups) {
         ByteInputStream stream(data);
         Region region;
 
@@ -93,7 +93,7 @@ namespace xaero {
          Even though careful programming could fix all of these issues, I really don't think it's worth the risk
          */
 
-        std::vector<std::shared_ptr<BlockState>> statePalette{};
+        std::vector<std::variant<const BlockState*, std::shared_ptr<BlockState>>> statePalette{};
         std::vector<std::shared_ptr<std::string>> biomePalette{};
 
         const bool hasFullVersion = stream.peekNext<std::uint8_t>() == 255;
@@ -179,21 +179,38 @@ namespace xaero {
                             if (isNotGrass) {
                                 if (region.majorVersion == 0) { // old format, state is a state id
                                     const auto stateID = stream.getNext<std::int32_t>();
-                                    auto state = std::make_shared<BlockState>(*getStateFromID(stateID));
-                                    convertNBT(state.get(), region.majorVersion);
-                                    pixel.state = std::move(state);
+                                    auto localState = *getStateFromID(stateID);
+                                    convertNBT(&localState, region.majorVersion);
+                                    if (lookups) {
+                                        pixel.state = &lookups->stateLookup->at(localState.strippedName()).at(localState.properties);
+                                    } else {
+                                        pixel.state = std::make_shared<BlockState>(std::move(localState));
+                                    }
                                 } else {
                                     if (newStatePaletteEntry) {
-                                        auto nbtStream = nbt::io::stream_reader(stream.getStream());
 
-                                        const auto nbt = nbtStream.read_compound();
+                                        if (const auto nbt = nbt::io::stream_reader(stream.getStream()).read_compound();
+                                            lookups) {
 
-                                        statePalette.emplace_back(std::make_shared<BlockState>(std::move(*nbt.second))); // copy the stupid compound tag because why is that a ptr
+                                            BlockState localState{std::move(*nbt.second)};
+
+                                            if (region.majorVersion < 7) {
+                                                convertNBT(&localState, region.majorVersion);
+                                            }
+
+                                            statePalette.emplace_back(&lookups->stateLookup->at(localState.strippedName()).at(localState.properties));
+                                        } else {
+                                            auto localState = std::make_shared<BlockState>(std::move(*nbt.second));
+
+                                            if (region.majorVersion < 7) {
+                                                convertNBT(localState.get(), region.majorVersion); // make it up to date pls !
+                                            }
+
+                                            statePalette.emplace_back(std::move(localState)); // copy the stupid compound tag because why is that a ptr
+                                        }
+
                                         pixel.state = statePalette.back();
 
-                                        if (region.majorVersion < 7) {
-                                            convertNBT(statePalette.back().get(), region.majorVersion); // make it up to date pls !
-                                        }
                                     } else {
                                         const auto paletteIndex = stream.getNext<std::int32_t>();
                                         pixel.state = statePalette[paletteIndex];
@@ -243,15 +260,37 @@ namespace xaero {
                                         overlay.state = getStateFromID(9); // default water state
                                     } else {
                                         if (region.majorVersion == 0) {
-                                            overlay.state = getStateFromID(stream.getNext<std::int32_t>());
+                                            auto localState = *getStateFromID(stream.getNext<std::int32_t>());
+                                            convertNBT(&localState, region.majorVersion);
+                                            if (lookups) {
+                                                pixel.state = &lookups->stateLookup->at(localState.strippedName()).at(localState.properties);
+                                            } else {
+                                                pixel.state = std::make_shared<BlockState>(localState);
+                                            }
                                         } else {
                                             if (newOverlayStatePaletteEntry) {
-                                                auto nbtStream = nbt::io::stream_reader(stream.getStream());
+                                                if (const auto nbt = nbt::io::stream_reader(stream.getStream()).read_compound();
+                                                    lookups) {
 
-                                                const auto nbt = nbtStream.read_compound();
+                                                    BlockState localState{std::move(*nbt.second)};
 
-                                                statePalette.emplace_back(std::make_shared<BlockState>(std::move(*nbt.second)));
-                                                overlay.state = statePalette.back();
+                                                    if (region.majorVersion < 7) {
+                                                        convertNBT(&localState, region.majorVersion);
+                                                    }
+
+                                                    statePalette.emplace_back(&lookups->stateLookup->at(localState.strippedName()).at(localState.properties));
+                                                } else {
+                                                    auto localState = std::make_shared<BlockState>(std::move(*nbt.second));
+
+                                                    if (region.majorVersion < 7) {
+                                                        convertNBT(localState.get(), region.majorVersion); // make it up to date pls !
+                                                    }
+
+                                                    statePalette.emplace_back(std::move(localState)); // copy the stupid compound tag because why is that a ptr
+                                                }
+
+                                                pixel.state = statePalette.back();
+
                                             } else {
                                                 overlay.state = statePalette[stream.getNext<std::uint32_t>()];
                                             }
@@ -620,21 +659,24 @@ namespace xaero {
 
     // separated so it can be used on both the overlays and the pixels
     inline RegionImage::Pixel getStateColor(
-        const BlockState* const state,
+        const BlockState* state,
         const BiomeColors& biome,
         const LookupPack* lookups) {
 
         RegionImage::Pixel color;
-        TintIndex tint;
+        TintIndex tint = TintIndex::NONE;
 
-        if (const auto properties = lookups->stateLookup->find(state->strippedName());
+        if (!state->color) {
+            if (const auto properties = lookups->stateLookup->find(state->strippedName());
             properties != lookups->stateLookup->end()) {
-
-            const auto& pack = properties->second.at(state->properties);
-            color = pack.color;
-            tint = static_cast<TintIndex>(pack.tintIndex);
+                state = &properties->second.at(state->properties);
+                goto found_color; // avoid extra branch :nerd:
+            }
         } else {
-            tint = TintIndex::NONE;
+            found_color:
+
+            color = state->color->color;
+            tint = static_cast<TintIndex>(state->color->tintIndex);
         }
 
         if (const auto strippedName = state->strippedName();
@@ -751,18 +793,18 @@ namespace xaero {
     }
 
     RegionImage generateImage(const std::filesystem::path &file, const LookupPack *lookups) {
-        return generateImage(parseRegion(file), lookups);
+        return generateImage(parseRegion(file, lookups), lookups);
     }
 
     RegionImage generateImage(const std::string_view &data, const LookupPack *lookups) {
-        return generateImage(parseRegion(data), lookups);
+        return generateImage(parseRegion(data, lookups), lookups);
     }
 
     RegionImage generateImage(std::istream &data, const LookupPack *lookups) {
-        return generateImage(parseRegion(data), lookups);
+        return generateImage(parseRegion(data, lookups), lookups);
     }
 
-    Region parseRegion(const std::filesystem::path &file) {
+    Region parseRegion(const std::filesystem::path &file, const LookupPack* lookups) {
         auto zipReader = mz_zip_reader_create();
         int32_t error = MZ_OK;
         std::string data;
@@ -798,12 +840,12 @@ namespace xaero {
         }
 
         auto stream = std::istringstream(data);
-        return parseRegion(stream);
+        return parseRegion(stream, lookups);
     }
 
-    Region parseRegion(const std::string_view &data) {
+    Region parseRegion(const std::string_view &data, const LookupPack* lookups) {
         std::ispanstream stream(data);
-        return parseRegion(stream);
+        return parseRegion(stream, lookups);
     }
 
 } // xaero
